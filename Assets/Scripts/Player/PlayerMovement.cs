@@ -21,34 +21,33 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundMask;
 
     [Header("Animation / Model")]
-    public Animator anim;         // Animator на модели
-    public Transform modelRoot;   // Объект модели (его крутим поворотами)
-    public float turnSpeed = 10f; // Плавность поворота модели
+    public Animator anim;         // Animator
+    public Transform modelRoot;   // object for rotation
+    public float turnSpeed = 10f; // turn speed
 
-    // внутренние
+    
     Vector3 velocity;
     bool turning;
     Quaternion targetTurnRot;
 
     void Update()
     {
-        // --- Ground
+        // floor ground
         bool grounded = controller.isGrounded;
         if (grounded && velocity.y < 0f) velocity.y = -2f;
 
-        // --- Узнаём, идёт ли сейчас анимация удара (Stabbing)
-        // В Animator стейт должен называться ровно "Stabbing" (или переименуй здесь под свой)
+        // animation stop when stubbing
         bool isStabbing = anim && anim.GetCurrentAnimatorStateInfo(0).IsName("Stabbing");
 
-        // --- Атака по ЛКМ (разрешаем триггерить всегда; движение заблокируем ниже)
+        // attack animation
         if (Input.GetMouseButtonDown(0))
         {
             if (anim) anim.SetTrigger("Stab");
-            // сразу отменим плавный поворот, чтобы удар не «боролся» с ним
+            // stop turn
             turning = false;
         }
 
-        // --- Input движения (если Stabbing — блокируем)
+        // animation stop when stubbing
         float x = isStabbing ? 0f : Input.GetAxisRaw("Horizontal");
         float z = isStabbing ? 0f : Input.GetAxisRaw("Vertical");
         Vector3 input = new Vector3(x, 0f, z);
@@ -57,27 +56,27 @@ public class PlayerMovement : MonoBehaviour
         bool isRunning = !isStabbing && Input.GetKey(KeyCode.LeftShift);
         float targetSpeed = isRunning ? runSpeed : walkSpeed;
 
-        // --- Горизонтальное движение (локальные оси игрока)
+        // horizontal move
         Vector3 moveWorld = transform.TransformDirection(input.normalized) * (move01 > 0f ? targetSpeed : 0f);
 
-        // Если начали двигаться — отменяем возможный «поворот на месте»
+        // if stay stop move animation
         if (move01 > 0f) turning = false;
 
-        // --- Прыжок (запрещён во время Stabbing)
+        // don't jump when attack
         if (!isStabbing && Input.GetButtonDown("Jump") && grounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
             if (anim) anim.SetTrigger("Jump");
         }
 
-        // --- Гравитация
+        // gravity
         velocity.y += gravity * Time.deltaTime;
 
-        // --- Финальное перемещение
+        // final move
         Vector3 motion = new Vector3(moveWorld.x, velocity.y, moveWorld.z) * Time.deltaTime;
         controller.Move(motion);
 
-        // --- Поворот модели к направлению движения (когда идём/бежим и не Stabbing)
+        // turn to move
         if (!isStabbing && modelRoot && move01 > 0f)
         {
             Vector3 flat = new Vector3(moveWorld.x, 0f, moveWorld.z);
@@ -88,7 +87,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // --- Повороты A/D ТОЛЬКО на месте (Idle) и не во время Stabbing
+        // a/d iddle
         if (!isStabbing && modelRoot && move01 <= 0.001f)
         {
             if (Input.GetKeyDown(KeyCode.A))
@@ -105,18 +104,19 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // --- Плавное доворачивание модели под «turn»
+        // turn slow
         if (!isStabbing && turning && modelRoot)
         {
             modelRoot.rotation = Quaternion.Slerp(modelRoot.rotation, targetTurnRot, Time.deltaTime * turnSpeed);
             if (Quaternion.Angle(modelRoot.rotation, targetTurnRot) < 1f) turning = false;
         }
 
-        // --- Параметры анимации (локомоция)
+        // animation parameters
         if (anim)
         {
             anim.SetFloat("Speed", move01);       // 0..1 — Idle/Walk
             anim.SetBool("IsRunning", isRunning); // Shift — Run
         }
+
     }
 }
