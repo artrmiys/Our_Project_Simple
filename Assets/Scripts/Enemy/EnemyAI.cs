@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
@@ -14,9 +14,14 @@ public class EnemyAI : MonoBehaviour
     public float patrolSpeed = 2f;
     public Transform player;
 
+    [Header("Combat / Push")]
+    public float pushDistance = 1.5f;   // дистанция для толчка
+    public float pushForce = 5f;        // сила толчка
+    public float retreatDistance = 3f;  // насколько далеко отходит
+
     [Header("Combat")]
-    public string playerAttackTag = "PlayerAttack"; // ??? ???????? ????? ??????
-    public float defaultDamageFromPlayer = 1f;      // ?? ??????, ???? ?? ???????? ??? DamageDealer
+    public string playerAttackTag = "PlayerAttack";
+    public float defaultDamageFromPlayer = 1f;
     public GameObject deathVFX;
     public AudioClip deathSfx;
     public float destroyDelay = 0.2f;
@@ -24,8 +29,10 @@ public class EnemyAI : MonoBehaviour
     NavMeshAgent agent;
     Health health;
     int currentPoint = 0;
-    enum State { Patrol, Chase }
+
+    enum State { Patrol, Chase, Retreat }
     State state = State.Patrol;
+
     bool isDead;
 
     void Awake()
@@ -33,8 +40,9 @@ public class EnemyAI : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         health = GetComponent<Health>();
 
-        // ??????? ????????? + ?????????????? RB ??? ?????????? ?????????
-        var col = GetComponent<Collider>(); if (col) col.isTrigger = false;
+        var col = GetComponent<Collider>();
+        if (col) col.isTrigger = false;
+
         if (!TryGetComponent<Rigidbody>(out var rb))
         {
             rb = gameObject.AddComponent<Rigidbody>();
@@ -63,6 +71,10 @@ public class EnemyAI : MonoBehaviour
                 break;
             case State.Chase:
                 Chase();
+                TryPushPlayer();
+                break;
+            case State.Retreat:
+                Retreat();
                 break;
         }
     }
@@ -92,12 +104,54 @@ public class EnemyAI : MonoBehaviour
     {
         if (!player) return;
         agent.SetDestination(player.position);
+
         if (Vector3.Distance(transform.position, player.position) > visionRange * 1.5f)
         {
             state = State.Patrol;
             agent.speed = patrolSpeed;
             if (patrolPoints.Length > 0)
                 agent.SetDestination(patrolPoints[currentPoint].position);
+        }
+    }
+
+    void TryPushPlayer()
+    {
+        if (!player) return;
+
+        float dist = Vector3.Distance(transform.position, player.position);
+        if (dist < pushDistance)
+        {
+            Rigidbody prb = player.GetComponent<Rigidbody>();
+            if (prb != null)
+            {
+                Vector3 dir = (player.position - transform.position).normalized;
+                prb.AddForce(dir * pushForce, ForceMode.Impulse);
+            }
+
+            // shake cam
+            if (CameraShake.Instance != null)
+            {
+                CameraShake.Instance.Shake();
+            }
+
+            state = State.Retreat;
+        }
+    }
+
+    void Retreat()
+    {
+        if (!player) return;
+
+        // цель = точка от игрока в противоположную сторону
+        Vector3 dirAway = (transform.position - player.position).normalized;
+        Vector3 retreatTarget = transform.position + dirAway * retreatDistance;
+
+        agent.SetDestination(retreatTarget);
+
+        // если враг уже далеко → вернуться в chase
+        if (Vector3.Distance(transform.position, player.position) > retreatDistance + 0.5f)
+        {
+            state = State.Chase;
         }
     }
 

@@ -194,7 +194,7 @@ LineRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -203,7 +203,7 @@ LineRenderer:
         outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -282,17 +282,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ropeMaterial: {fileID: 2100000, guid: 0567bc0478cffc74095233a66a9878d3, type: 2}
-  startPoint: {fileID: 2060370182}
-  endPoint: {fileID: 31323233}
-  segments: 40
-  slack: 0.1
+  startPoint: {fileID: 31323233}
+  length: 0.05
+  segments: 32
+  player: {fileID: 1826348478}
+  capsuleHeight: 2
+  capsuleRadius: 1
+  groundY: 3
   thickness: 0.01
   color: {r: 1, g: 0, b: 0, a: 1}
-  damping: 0.93
-  gravity: 1
-  wind: {x: 0.2, y: 0, z: 0.1}
-  constraintIterations: 2
-  stiffness: 0.6
+  damping: 0.6
+  gravity: 0.1
+  swayStrength: 0.2
+  stiffness: 0.8
+  constraintIterations: 35
 --- !u!1 &14804598
 GameObject:
   m_ObjectHideFlags: 0
@@ -417,7 +420,7 @@ Transform:
   m_GameObject: {fileID: 31323232}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5363548, y: 0.47050008, z: 0.45246086, w: -0.53500694}
-  m_LocalPosition: {x: 0.178, y: 0.159, z: 0.494}
+  m_LocalPosition: {x: 0.178, y: 5.75, z: 0.494}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -633,6 +636,9 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 55846974}
     m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bc6c70e0579a947808a1c3defe872758, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1974745557}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: bc6c70e0579a947808a1c3defe872758, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1974745556}
@@ -882,6 +888,7 @@ GameObject:
   - component: {fileID: 210127980}
   - component: {fileID: 210127981}
   - component: {fileID: 210127983}
+  - component: {fileID: 210127984}
   m_Layer: 0
   m_Name: 2Enemy
   m_TagString: Enemy
@@ -971,7 +978,7 @@ Transform:
   m_GameObject: {fileID: 210127975}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 59.12, y: 1.471, z: -10.2}
+  m_LocalPosition: {x: 54.72, y: -2.36, z: -10.2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1019,6 +1026,9 @@ MonoBehaviour:
   chaseSpeed: 5
   patrolSpeed: 12
   player: {fileID: 1422487455}
+  pushDistance: 1.5
+  pushForce: 5
+  retreatDistance: 3
   playerAttackTag: PlayerAttack
   defaultDamageFromPlayer: 1
   deathVFX: {fileID: 0}
@@ -1057,6 +1067,19 @@ MonoBehaviour:
   onDied:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &210127984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 210127975}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d003197cd3e67b47a940af0bd38368f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHP: 15
 --- !u!1 &229474312 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7593260538341497390, guid: a5e2707c3ca237d48988de1246c46a95, type: 3}
@@ -1114,7 +1137,7 @@ Transform:
   m_GameObject: {fileID: 246801136}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -5.77, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1152,7 +1175,7 @@ Transform:
   m_GameObject: {fileID: 260029139}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -5.18, y: 11.24, z: -3.14}
+  m_LocalPosition: {x: -0.839, y: 5.485, z: 0.362}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1660,7 +1683,7 @@ Transform:
   m_GameObject: {fileID: 568673948}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -5.77, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1857,6 +1880,7 @@ GameObject:
   - component: {fileID: 790476492}
   - component: {fileID: 790476494}
   - component: {fileID: 790476495}
+  - component: {fileID: 790476496}
   m_Layer: 0
   m_Name: 1Enemy
   m_TagString: Enemy
@@ -1995,6 +2019,9 @@ MonoBehaviour:
   chaseSpeed: 5
   patrolSpeed: 12
   player: {fileID: 1422487455}
+  pushDistance: 1.5
+  pushForce: 5
+  retreatDistance: 3
   playerAttackTag: PlayerAttack
   defaultDamageFromPlayer: 1
   deathVFX: {fileID: 0}
@@ -2060,6 +2087,19 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &790476496
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 790476486}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d003197cd3e67b47a940af0bd38368f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxHP: 15
 --- !u!1 &836528036
 GameObject:
   m_ObjectHideFlags: 0
@@ -2281,7 +2321,7 @@ Transform:
   m_GameObject: {fileID: 892211130}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 4.76, y: 11.24, z: -3.14}
+  m_LocalPosition: {x: 1.386, y: 5.1, z: 0.516}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2333,17 +2373,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ropeMaterial: {fileID: 2100000, guid: 0567bc0478cffc74095233a66a9878d3, type: 2}
-  startPoint: {fileID: 1409085636}
-  endPoint: {fileID: 882897848}
-  segments: 40
-  slack: 0.1
+  startPoint: {fileID: 882897848}
+  length: 0.05
+  segments: 32
+  player: {fileID: 1826348478}
+  capsuleHeight: 2
+  capsuleRadius: 1
+  groundY: 3
   thickness: 0.01
   color: {r: 1, g: 0, b: 0, a: 1}
-  damping: 0.93
-  gravity: 1
-  wind: {x: 0.2, y: 0, z: 0.1}
-  constraintIterations: 2
-  stiffness: 0.6
+  damping: 0.6
+  gravity: 0.1
+  swayStrength: 0.2
+  stiffness: 0.8
+  constraintIterations: 35
 --- !u!120 &910988856
 LineRenderer:
   serializedVersion: 2
@@ -2397,7 +2440,7 @@ LineRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -2406,7 +2449,7 @@ LineRenderer:
         outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -3168,7 +3211,7 @@ Transform:
   m_GameObject: {fileID: 1237738060}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.35, y: 7.97, z: -9.43}
+  m_LocalPosition: {x: 1.53, y: 4.69, z: -0.31}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3332,17 +3375,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ropeMaterial: {fileID: 2100000, guid: 0567bc0478cffc74095233a66a9878d3, type: 2}
-  startPoint: {fileID: 260029140}
-  endPoint: {fileID: 1817585033}
-  segments: 40
-  slack: 0.1
+  startPoint: {fileID: 1817585033}
+  length: 0.05
+  segments: 32
+  player: {fileID: 1826348478}
+  capsuleHeight: 2
+  capsuleRadius: 1
+  groundY: 3
   thickness: 0.01
   color: {r: 1, g: 0, b: 0, a: 1}
-  damping: 0.93
-  gravity: 1
-  wind: {x: 0.2, y: 0, z: 0.1}
-  constraintIterations: 2
-  stiffness: 0.6
+  damping: 0.6
+  gravity: 0.1
+  swayStrength: 0.2
+  stiffness: 0.8
+  constraintIterations: 35
 --- !u!120 &1324123818
 LineRenderer:
   serializedVersion: 2
@@ -3396,7 +3442,7 @@ LineRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -3405,7 +3451,7 @@ LineRenderer:
         outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -3622,7 +3668,7 @@ Transform:
   m_GameObject: {fileID: 1409085635}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -2.57, y: 7.9699993, z: -9.430001}
+  m_LocalPosition: {x: -1.2, y: 5.274, z: -0.11}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3925,6 +3971,9 @@ PrefabInstance:
       addedObject: {fileID: 1826348477}
     - targetCorrespondingSourceObject: {fileID: 1082271958561512970, guid: 2c6fb7c4a8f545441bbe4994fc42c102, type: 3}
       insertIndex: -1
+      addedObject: {fileID: 1826348479}
+    - targetCorrespondingSourceObject: {fileID: 1082271958561512970, guid: 2c6fb7c4a8f545441bbe4994fc42c102, type: 3}
+      insertIndex: -1
       addedObject: {fileID: 1826348476}
     - targetCorrespondingSourceObject: {fileID: 1082271958561512970, guid: 2c6fb7c4a8f545441bbe4994fc42c102, type: 3}
       insertIndex: -1
@@ -3946,8 +3995,10 @@ GameObject:
   - component: {fileID: 1436667537}
   - component: {fileID: 1436667536}
   - component: {fileID: 1436667535}
+  - component: {fileID: 1436667541}
   - component: {fileID: 1436667538}
   - component: {fileID: 1436667539}
+  - component: {fileID: 1436667540}
   m_Layer: 6
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -3996,7 +4047,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 60
+  field of view: 90
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -4022,13 +4073,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1436667534}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.21057755, y: -0, z: -0, w: 0.97757715}
-  m_LocalPosition: {x: -2.49, y: 5.94, z: -8.62}
+  m_LocalRotation: {x: 0.17359835, y: 0.023588507, z: -0.00415929, w: 0.9845252}
+  m_LocalPosition: {x: 0.17, y: 2.0499997, z: -2.5800018}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2079604123}
-  m_LocalEulerAnglesHint: {x: 24.312, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 20, y: 2.745, z: 0}
 --- !u!114 &1436667538
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4087,6 +4138,32 @@ MonoBehaviour:
     mipBias: 0
     varianceClampScale: 0.9
     contrastAdaptiveSharpening: 0
+--- !u!114 &1436667540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1436667534}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d965ae820dfb2874d88aa898234f4cec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  duration: 0.2
+  magnitude: 0.2
+--- !u!114 &1436667541
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1436667534}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 46b65af5fff97b84aa6221069ef15db3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1456775917
 GameObject:
   m_ObjectHideFlags: 0
@@ -4112,7 +4189,7 @@ Transform:
   m_GameObject: {fileID: 1456775917}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: -5.77, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -4342,6 +4419,10 @@ PrefabInstance:
     - target: {fileID: 1842455095270572267, guid: a5e2707c3ca237d48988de1246c46a95, type: 3}
       propertyPath: m_IsActive
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2969756172484877894, guid: a5e2707c3ca237d48988de1246c46a95, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -5142,17 +5223,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ropeMaterial: {fileID: 2100000, guid: 0567bc0478cffc74095233a66a9878d3, type: 2}
-  startPoint: {fileID: 892211131}
-  endPoint: {fileID: 14804599}
-  segments: 40
-  slack: 0.1
+  startPoint: {fileID: 14804599}
+  length: 0.05
+  segments: 32
+  player: {fileID: 1826348478}
+  capsuleHeight: 2
+  capsuleRadius: 1
+  groundY: 3
   thickness: 0.01
   color: {r: 1, g: 0, b: 0, a: 1}
-  damping: 0.93
-  gravity: 1
-  wind: {x: 0.2, y: 0, z: 0.1}
-  constraintIterations: 2
-  stiffness: 0.6
+  damping: 0.6
+  gravity: 0.1
+  swayStrength: 0.2
+  stiffness: 0.8
+  constraintIterations: 35
 --- !u!120 &1767811248
 LineRenderer:
   serializedVersion: 2
@@ -5206,7 +5290,7 @@ LineRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -5215,7 +5299,7 @@ LineRenderer:
         outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -5527,10 +5611,38 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 1
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 0.90028554, y: 1, z: 0.72319925}
+  m_Center: {x: -0.049857236, y: -7.5774886e-10, z: 0.13840038}
+--- !u!4 &1826348478 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5465940246521907071, guid: 2c6fb7c4a8f545441bbe4994fc42c102, type: 3}
+  m_PrefabInstance: {fileID: 1422487454}
+  m_PrefabAsset: {fileID: 0}
+--- !u!136 &1826348479
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1826348473}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5621459
+  m_Height: 1.84285
+  m_Direction: 1
+  m_Center: {x: 0.0033366673, y: 0.42142594, z: 0.05880922}
 --- !u!1 &1832992014
 GameObject:
   m_ObjectHideFlags: 0
@@ -5627,7 +5739,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 80, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1897648018
@@ -5931,6 +6043,19 @@ MonoBehaviour:
   - Hola
   typeSpeed: 0
   interactKey: 13
+--- !u!114 &1974745557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1974745553}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 465e63135e39e1a4b9bc4d94fae192de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ItemName: NPC_Interactive_story
 --- !u!1 &1987028433
 GameObject:
   m_ObjectHideFlags: 0
@@ -6066,17 +6191,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ropeMaterial: {fileID: 2100000, guid: 0567bc0478cffc74095233a66a9878d3, type: 2}
-  startPoint: {fileID: 1237738061}
-  endPoint: {fileID: 1260770290}
-  segments: 40
-  slack: 0.1
+  startPoint: {fileID: 1260770290}
+  length: 0.05
+  segments: 32
+  player: {fileID: 1826348478}
+  capsuleHeight: 2
+  capsuleRadius: 1
+  groundY: 3
   thickness: 0.01
   color: {r: 1, g: 0, b: 0, a: 1}
-  damping: 0.93
-  gravity: 1
-  wind: {x: 0.2, y: 0, z: 0.1}
-  constraintIterations: 2
-  stiffness: 0.6
+  damping: 0.6
+  gravity: 0.1
+  swayStrength: 0.2
+  stiffness: 0.8
+  constraintIterations: 35
 --- !u!120 &2057987502
 LineRenderer:
   serializedVersion: 2
@@ -6130,7 +6258,7 @@ LineRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -6139,7 +6267,7 @@ LineRenderer:
         outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
-        value: 0.01
+        value: 0.03
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -6215,7 +6343,7 @@ Transform:
   m_GameObject: {fileID: 2060370181}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.32, y: 14.51, z: 2.37}
+  m_LocalPosition: {x: 0.72, y: 6.42, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -15,8 +15,12 @@ public class MouseMovement : MonoBehaviour
         Cursor.visible = false;
 
         // camera start
-        xRotation = transform.localEulerAngles.x;
-        if (xRotation > 180f) xRotation -= 360f;
+        //xRotation = transform.localEulerAngles.x;
+        //if (xRotation > 180f) xRotation -= 360f;
+
+        // сразу выставляем взгляд прямо
+        xRotation = 0f;
+        transform.localRotation = Quaternion.Euler(20f, 3f, 0f);
     }
 
     void Update()
