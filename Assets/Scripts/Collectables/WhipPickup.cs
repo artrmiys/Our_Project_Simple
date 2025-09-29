@@ -2,23 +2,26 @@ using UnityEngine;
 
 public class WhipPickup : MonoBehaviour
 {
-    [Header("pickup sound")]
+    [Header("sound")]
+    public AudioSource audioSource;   // источник звука (можно на этом объекте)
     public AudioClip pickupSound;     // звук подбора
 
     void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
         {
-            // включаем кнут у игрока
+            // даём кнут игроку
             PlayerAttack pa = other.GetComponent<PlayerAttack>();
             if (pa != null)
+            {
                 pa.CollectWhip();
+            }
 
-            // проигрываем звук подбора в точке предмета
-            if (pickupSound != null)
-                AudioSource.PlayClipAtPoint(pickupSound, transform.position);
+            // звук подбора
+            if (audioSource && pickupSound)
+                audioSource.PlayOneShot(pickupSound);
 
-            // убираем предмет
+            // скрываем объект
             gameObject.SetActive(false);
         }
     }
