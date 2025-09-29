@@ -26,6 +26,9 @@ public class EnemyAI : MonoBehaviour
     public AudioClip deathSfx;
     public float destroyDelay = 0.2f;
 
+    [Header("Animation")]
+    public Animator animator; // Animator контроллер врага
+
     NavMeshAgent agent;
     Health health;
     int currentPoint = 0;
@@ -40,13 +43,16 @@ public class EnemyAI : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         health = GetComponent<Health>();
 
+        if (!animator) animator = GetComponentInChildren<Animator>();
+
         var col = GetComponent<Collider>();
         if (col) col.isTrigger = false;
 
         if (!TryGetComponent<Rigidbody>(out var rb))
         {
             rb = gameObject.AddComponent<Rigidbody>();
-            rb.isKinematic = true; rb.useGravity = false;
+            rb.isKinematic = true;
+            rb.useGravity = false;
         }
 
         health.onDied.AddListener(HandleDeath);
@@ -57,6 +63,9 @@ public class EnemyAI : MonoBehaviour
         agent.speed = patrolSpeed;
         if (patrolPoints != null && patrolPoints.Length > 0)
             agent.SetDestination(patrolPoints[currentPoint].position);
+
+        // В начале — Idle
+        if (animator) animator.SetFloat("Speed", 0f);
     }
 
     void Update()
@@ -76,6 +85,13 @@ public class EnemyAI : MonoBehaviour
             case State.Retreat:
                 Retreat();
                 break;
+        }
+
+        // === обновление параметра Speed для Idle/Walk ===
+        if (animator)
+        {
+            float speed = agent.velocity.magnitude;
+            animator.SetFloat("Speed", speed);
         }
     }
 
@@ -128,6 +144,9 @@ public class EnemyAI : MonoBehaviour
                 prb.AddForce(dir * pushForce, ForceMode.Impulse);
             }
 
+            // триггерим анимацию Push
+            if (animator) animator.SetTrigger("Push");
+
             // shake cam
             if (CameraShake.Instance != null)
             {
@@ -161,6 +180,9 @@ public class EnemyAI : MonoBehaviour
         isDead = true;
 
         if (agent) agent.isStopped = true;
+
+        if (animator) animator.SetBool("Dead", true);
+
         foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
         foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
 
