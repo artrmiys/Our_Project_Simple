@@ -53,8 +53,10 @@ public class PlayerMovement : MonoBehaviour
         Vector3 input = new Vector3(x, 0f, z);
         float move01 = Mathf.Clamp01(input.magnitude);
 
-        bool isRunning = !isStabbing && Input.GetKey(KeyCode.LeftShift);
-        float targetSpeed = isRunning ? runSpeed : walkSpeed;
+
+        bool isWalking = !isStabbing && Input.GetKey(KeyCode.LeftShift);
+        float targetSpeed = isWalking ? walkSpeed : runSpeed;
+
 
         // horizontal move
         Vector3 moveWorld = transform.TransformDirection(input.normalized) * (move01 > 0f ? targetSpeed : 0f);
@@ -114,9 +116,10 @@ public class PlayerMovement : MonoBehaviour
         // animation parameters
         if (anim)
         {
-            anim.SetFloat("Speed", move01);       // 0..1 — Idle/Walk
-            anim.SetBool("IsRunning", isRunning); // Shift — Run
+            anim.SetFloat("Speed", move01);        // 0..1 — Idle/Walk/Run
+            anim.SetBool("IsRunning", !isWalking); // run default
         }
+
 
     }
 }

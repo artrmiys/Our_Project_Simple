@@ -3,14 +3,22 @@ using UnityEngine;
 
 public class PlayerAttack : MonoBehaviour
 {
-    public Transform handPoint; 
-    public GameObject whipPrefab;  
+    [Header("whip")]
+    public Transform handPoint;
+    public GameObject whipPrefab;
 
-    private bool isAttacking = false;   
+    [Header("pickup")]
+    public bool hasWhip = false;   // будет true после подбора ниток
+
+    [Header("sound")]
+    public AudioSource audioSource;
+    public AudioClip whipSound;
+
+    private bool isAttacking = false;
 
     void Update()
     {
-        if (Input.GetMouseButtonDown(0) && !isAttacking) 
+        if (hasWhip && Input.GetMouseButtonDown(0) && !isAttacking)
         {
             StartCoroutine(SpawnWhip());
         }
@@ -20,15 +28,25 @@ public class PlayerAttack : MonoBehaviour
     {
         isAttacking = true;
 
-        // waiting
+        // delay before spawn
         yield return new WaitForSeconds(0.25f);
 
-        // create
+        // create whip
         Instantiate(whipPrefab, handPoint.position, handPoint.rotation);
 
-        // waiting
+        // play sound
+        if (audioSource && whipSound)
+            audioSource.PlayOneShot(whipSound);
+
+        // cooldown
         yield return new WaitForSeconds(0.4f);
 
         isAttacking = false;
+    }
+
+    // вызовется из WhipPickup
+    public void CollectWhip()
+    {
+        hasWhip = true;
     }
 }
