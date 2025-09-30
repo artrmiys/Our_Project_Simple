@@ -6,189 +6,162 @@ using UnityEngine.AI;
 [RequireComponent(typeof(Health))]
 public class EnemyAI : MonoBehaviour
 {
-    [Header("Patrol / Chase")]
-    public Transform[] patrolPoints;
-    public float visionRange = 10f;
-    public float visionAngle = 60f;
-    public float chaseSpeed = 5f;
-    public float patrolSpeed = 2f;
+    [Header("References")]
+    public Animator animator;
     public Transform player;
 
-    [Header("Combat / Push")]
-    public float pushDistance = 1.5f;   // дистанция для толчка
-    public float pushForce = 5f;        // сила толчка
-    public float retreatDistance = 3f;  // насколько далеко отходит
+    [Header("Movement")]
+    public Transform[] patrolPoints;
+    public float patrolSpeed = 2f;
+    public float chaseSpeed = 4f;
+    public float visionRange = 10f;
+    public float visionAngle = 60f;
 
     [Header("Combat")]
-    public string playerAttackTag = "PlayerAttack";
-    public float defaultDamageFromPlayer = 1f;
+    public float attackDistance = 1.5f;
+    public float attackForce = 5f;
+    public float attackCooldown = 2f;
+
+    [Header("Death")]
     public GameObject deathVFX;
     public AudioClip deathSfx;
-    public float destroyDelay = 0.2f;
-
-    [Header("Animation")]
-    public Animator animator; // Animator контроллер врага
 
     NavMeshAgent agent;
     Health health;
-    int currentPoint = 0;
 
-    enum State { Patrol, Chase, Retreat }
-    State state = State.Patrol;
-
+    int patrolIndex = 0;
     bool isDead;
+    float lastAttackTime;
 
     void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
         health = GetComponent<Health>();
-
         if (!animator) animator = GetComponentInChildren<Animator>();
 
-        var col = GetComponent<Collider>();
-        if (col) col.isTrigger = false;
-
-        if (!TryGetComponent<Rigidbody>(out var rb))
-        {
-            rb = gameObject.AddComponent<Rigidbody>();
-            rb.isKinematic = true;
-            rb.useGravity = false;
-        }
+        agent.updatePosition = true;
+        agent.updateRotation = true;
+        agent.angularSpeed = 720f;
+        agent.acceleration = 20f;
 
         health.onDied.AddListener(HandleDeath);
     }
 
     void Start()
     {
-        agent.speed = patrolSpeed;
-        if (patrolPoints != null && patrolPoints.Length > 0)
-            agent.SetDestination(patrolPoints[currentPoint].position);
-
-        // В начале — Idle
-        if (animator) animator.SetFloat("Speed", 0f);
+        if (patrolPoints.Length > 0)
+        {
+            agent.speed = patrolSpeed;
+            agent.stoppingDistance = 0.2f;
+            agent.SetDestination(patrolPoints[patrolIndex].position);
+        }
     }
 
     void Update()
     {
         if (isDead) return;
 
-        switch (state)
+        float dist = player ? Vector3.Distance(transform.position, player.position) : Mathf.Infinity;
+
+        if (player && dist <= attackDistance && Time.time - lastAttackTime > attackCooldown)
         {
-            case State.Patrol:
-                Patrol();
-                LookForPlayer();
-                break;
-            case State.Chase:
-                Chase();
-                TryPushPlayer();
-                break;
-            case State.Retreat:
-                Retreat();
-                break;
+            Attack();
+        }
+        else if (player && dist <= visionRange && CanSeePlayer())
+        {
+            Chase();
+        }
+        else if (patrolPoints.Length > 0)
+        {
+            Patrol();
         }
 
-        // === обновление параметра Speed для Idle/Walk ===
-        if (animator)
-        {
-            float speed = agent.velocity.magnitude;
-            animator.SetFloat("Speed", speed);
-        }
+        UpdateAnimation();
     }
 
+    // === Patrol & Chase ===
     void Patrol()
     {
-        if (!agent.pathPending && agent.remainingDistance < 0.5f && patrolPoints.Length > 0)
+        agent.speed = patrolSpeed;
+        if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
-            currentPoint = (currentPoint + 1) % patrolPoints.Length;
-            agent.SetDestination(patrolPoints[currentPoint].position);
-        }
-    }
-
-    void LookForPlayer()
-    {
-        if (!player) return;
-        Vector3 toP = (player.position - transform.position).normalized;
-        float ang = Vector3.Angle(transform.forward, toP);
-        if (Vector3.Distance(transform.position, player.position) < visionRange && ang < visionAngle * 0.5f)
-        {
-            state = State.Chase;
-            agent.speed = chaseSpeed;
+            patrolIndex = (patrolIndex + 1) % patrolPoints.Length;
+            agent.SetDestination(patrolPoints[patrolIndex].position);
         }
     }
 
     void Chase()
     {
-        if (!player) return;
-        agent.SetDestination(player.position);
+        agent.speed = chaseSpeed;
+        agent.stoppingDistance = attackDistance - 0.1f;
+        agent.isStopped = false;
 
-        if (Vector3.Distance(transform.position, player.position) > visionRange * 1.5f)
-        {
-            state = State.Patrol;
-            agent.speed = patrolSpeed;
-            if (patrolPoints.Length > 0)
-                agent.SetDestination(patrolPoints[currentPoint].position);
-        }
+        if (player) agent.SetDestination(player.position);
     }
 
-    void TryPushPlayer()
+    bool CanSeePlayer()
     {
-        if (!player) return;
+        Vector3 dir = (player.position - transform.position).normalized;
+        float angle = Vector3.Angle(transform.forward, dir);
+        return angle < visionAngle * 0.5f;
+    }
 
-        float dist = Vector3.Distance(transform.position, player.position);
-        if (dist < pushDistance)
+    // === Combat ===
+    void Attack()
+    {
+        lastAttackTime = Time.time;
+        agent.isStopped = true;
+
+        // включаем анимацию атаки
+        animator.SetTrigger("Attack");
+
+        // наносим урон сразу (без Animation Event)
+        if (player)
         {
             Rigidbody prb = player.GetComponent<Rigidbody>();
             if (prb != null)
             {
                 Vector3 dir = (player.position - transform.position).normalized;
-                prb.AddForce(dir * pushForce, ForceMode.Impulse);
+                prb.AddForce(dir * attackForce, ForceMode.Impulse);
             }
 
-            // триггерим анимацию Push
-            if (animator) animator.SetTrigger("Push");
-
-            // shake cam
             if (CameraShake.Instance != null)
-            {
                 CameraShake.Instance.Shake();
-            }
-
-            state = State.Retreat;
         }
+
+        // через маленькую паузу снова идём за игроком
+        Invoke(nameof(ResumeChase), 0.5f);
     }
 
-    void Retreat()
+    void ResumeChase()
     {
-        if (!player) return;
-
-        // цель = точка от игрока в противоположную сторону
-        Vector3 dirAway = (transform.position - player.position).normalized;
-        Vector3 retreatTarget = transform.position + dirAway * retreatDistance;
-
-        agent.SetDestination(retreatTarget);
-
-        // если враг уже далеко → вернуться в chase
-        if (Vector3.Distance(transform.position, player.position) > retreatDistance + 0.5f)
+        if (!isDead && player)
         {
-            state = State.Chase;
+            agent.isStopped = false;
+            agent.SetDestination(player.position);
         }
     }
 
+    // === Animation ===
+    void UpdateAnimation()
+    {
+        if (!animator) return;
+        float speed = agent.velocity.magnitude;
+        animator.SetFloat("Speed", speed);
+    }
+
+    // === Death ===
     void HandleDeath()
     {
         if (isDead) return;
         isDead = true;
 
-        if (agent) agent.isStopped = true;
-
-        if (animator) animator.SetBool("Dead", true);
-
-        foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
-        foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+        agent.isStopped = true;
+        animator.SetBool("isDead", true);
 
         if (deathSfx) AudioSource.PlayClipAtPoint(deathSfx, transform.position);
         if (deathVFX) Instantiate(deathVFX, transform.position, Quaternion.identity);
 
-        Destroy(gameObject, destroyDelay);
+        Destroy(gameObject, 3f); // удалим через 3 сек (примерная длина анимации)
     }
 }
