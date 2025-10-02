@@ -6,8 +6,8 @@ public class CameraShake : MonoBehaviour
     public static CameraShake Instance;
 
     [Header("settings")]
-    public float duration = 0.2f;   // сколько трясёт
-    public float magnitude = 0.2f;  // сила тряски
+    public float duration = 0.2f;   
+    public float magnitude = 0.2f;
 
     private Vector3 originalPos;
 

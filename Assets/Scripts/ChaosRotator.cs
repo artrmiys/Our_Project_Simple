@@ -2,19 +2,19 @@ using UnityEngine;
 
 public class ChaosRotator : MonoBehaviour
 {
-    [Header("»грок")]
-    public Transform player;     // ссылка на игрока
+    [Header("Player")]
+    public Transform player;     // player ref
 
-    [Header("ќбъекты дл€ вращени€")]
-    public Transform[] targets;  // 5 объектов
+    [Header("Rotate objs")]
+    public Transform[] targets;  // 5 objs
 
-    [Header("ѕараметры движени€")]
-    public float moveRadius = 1f;      // радиус хаотичного движени€
-    public float moveSpeed = 1f;       // скорость перемещени€
-    public float rotationSpeed = 20f;  // скорость вращени€
+    [Header("Move params")]
+    public float moveRadius = 1f;      // move rad
+    public float moveSpeed = 1f;       // move spd
+    public float rotationSpeed = 20f;  // rot spd
 
-    private Vector3[] baseOffsets;     // фиксированное смещение каждой точки
-    private Vector3[] randomOffsets;   // временные хаотичные смещени€
+    private Vector3[] baseOffsets;     // base offs
+    private Vector3[] randomOffsets;   // rnd offs
 
     void Start()
     {
@@ -23,10 +23,10 @@ public class ChaosRotator : MonoBehaviour
 
         for (int i = 0; i < targets.Length; i++)
         {
-            // сохран€ем стартовое положение как смещение от игрока
+            // save start offset
             baseOffsets[i] = targets[i].position - player.position;
 
-            // добавл€ем небольшое хаотичное смещение
+            // set rnd offset
             randomOffsets[i] = Random.insideUnitSphere * moveRadius;
         }
     }
@@ -37,21 +37,21 @@ public class ChaosRotator : MonoBehaviour
         {
             if (targets[i] == null) continue;
 
-            // вращение на месте
+            // self rotate
             targets[i].Rotate(Vector3.up, rotationSpeed * Time.deltaTime);
             targets[i].Rotate(Vector3.right, rotationSpeed * 0.5f * Time.deltaTime);
 
-            // итогова€ цель = позици€ игрока + индивидуальное смещение + случайное "шевеление"
+            // final pos
             Vector3 targetPos = player.position + baseOffsets[i] + randomOffsets[i];
 
-            // плавное движение к цели
+            // smooth move
             targets[i].position = Vector3.MoveTowards(
                 targets[i].position,
                 targetPos,
                 moveSpeed * Time.deltaTime
             );
 
-            // если дошли Ч назначаем новое хаотичное смещение
+            // new rnd offset
             if (Vector3.Distance(targets[i].position, targetPos) < 0.1f)
             {
                 randomOffsets[i] = Random.insideUnitSphere * moveRadius;
@@ -59,5 +59,4 @@ public class ChaosRotator : MonoBehaviour
         }
     }
 }
-
 

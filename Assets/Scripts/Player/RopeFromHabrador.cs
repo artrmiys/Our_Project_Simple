@@ -6,29 +6,29 @@ public class RopeFromHabrador : MonoBehaviour
 {
     [SerializeField] private Material ropeMaterial;
 
-    [Header("Привязка")]
-    public Transform startPoint;              // крепление к персонажу
-    public float length = 1f;                 // длина нити
-    [Range(4, 64)] public int segments = 30;  // количество сегментов
-    public Transform player;                  // центр персонажа
+    [Header("Attach")]
+    public Transform startPoint;              // rope start
+    public float length = 1f;                 // rope len
+    [Range(4, 64)] public int segments = 30;  // rope segs
+    public Transform player;                  // player ref
 
-    [Header("Математическая капсула")]
-    public float capsuleHeight = 3.8f;        // высота
-    public float capsuleRadius = 2.4f;        // радиус
+    [Header("Capsule")]
+    public float capsuleHeight = 3.8f;        // cap height
+    public float capsuleRadius = 2.4f;        // cap rad
 
-    [Header("Пол")]
-    public float groundY = 2f;                // уровень пола
+    [Header("Ground")]
+    public float groundY = 2f;                // ground pos
 
-    [Header("Визуал")]
-    public float thickness = 0.02f;
-    public Color color = Color.white;
+    [Header("Visual")]
+    public float thickness = 0.02f;           // rope size
+    public Color color = Color.white;         // rope col
 
-    [Header("Физика")]
-    public float damping = 0.98f;
-    public float gravity = 0.02f;
-    public float swayStrength = 0.05f;
-    public float stiffness = 0.9f;
-    public int constraintIterations = 4;
+    [Header("Physics")]
+    public float damping = 0.98f;             // vel damp
+    public float gravity = 0.02f;             // grav str
+    public float swayStrength = 0.05f;        // sway str
+    public float stiffness = 0.9f;            // rope stiff
+    public int constraintIterations = 4;      // iters num
 
     struct Node { public Vector3 pos, prev; }
     List<Node> nodes;
@@ -61,6 +61,7 @@ public class RopeFromHabrador : MonoBehaviour
 
         for (int i = 0; i < segments; i++)
         {
+            // init nodes
             Vector3 p = start + Vector3.down * segLen * i;
             nodes.Add(new Node { pos = p, prev = p });
         }
@@ -75,7 +76,7 @@ public class RopeFromHabrador : MonoBehaviour
 
     void Simulate(float dt)
     {
-        // фиксируем верх
+        // fix start
         nodes[0] = new Node { pos = startPoint.position, prev = startPoint.position };
 
         for (int i = 1; i < nodes.Count; i++)
@@ -83,7 +84,7 @@ public class RopeFromHabrador : MonoBehaviour
             var n = nodes[i];
             Vector3 vel = (n.pos - n.prev) * damping;
 
-            // силы
+            // forces
             Vector3 F = Vector3.down * gravity;
             F += new Vector3(
                 Mathf.Sin(Time.time * 1.3f + i) * swayStrength,
@@ -96,17 +97,17 @@ public class RopeFromHabrador : MonoBehaviour
             n.prev = n.pos;
             n.pos = newPos;
 
-            // === Пол ===
+            // ground hit
             if (n.pos.y < groundY)
                 n.pos.y = groundY + 0.01f;
 
-            // === Капсула персонажа ===
+            // capsule hit
             if (player != null)
             {
-                Vector3 p1 = player.position; // нижняя точка
-                Vector3 p2 = player.position + Vector3.up * capsuleHeight; // верхняя точка
+                Vector3 p1 = player.position;
+                Vector3 p2 = player.position + Vector3.up * capsuleHeight;
 
-                // проекция точки на ось капсулы
+                // axis proj
                 Vector3 axis = p2 - p1;
                 float t = Vector3.Dot(n.pos - p1, axis.normalized);
                 t = Mathf.Clamp(t, 0, axis.magnitude);
@@ -125,7 +126,7 @@ public class RopeFromHabrador : MonoBehaviour
             nodes[i] = n;
         }
 
-        // === Constraints (длина) ===
+        // constraints len
         for (int it = 0; it < constraintIterations; it++)
         {
             for (int i = 0; i < nodes.Count - 1; i++)
@@ -156,8 +157,10 @@ public class RopeFromHabrador : MonoBehaviour
 
     void Render()
     {
+        // draw line
         lr.positionCount = nodes.Count;
         for (int i = 0; i < nodes.Count; i++)
             lr.SetPosition(i, nodes[i].pos);
     }
 }
+

@@ -4,21 +4,21 @@ using UnityEngine;
 [RequireComponent(typeof(LineRenderer))]
 public class WhipSimple : MonoBehaviour
 {
-    [Header("whip settings")]
-    public float length = 5f;
-    public int segments = 12;
-    public float lifetime = 0.4f;
-    public float waveSize = 0.5f;
-    public float waveSpeed = 20f;
-    public float thickness = 0.05f;
-    public Color color = Color.cyan;
-    public int damage = 25;
+    [Header("Whip set")]
+    public float length = 5f;       // whip len
+    public int segments = 12;       // whip segs
+    public float lifetime = 0.4f;   // life sec
+    public float waveSize = 0.5f;   // wave amp
+    public float waveSpeed = 20f;   // wave spd
+    public float thickness = 0.05f; // line wid
+    public Color color = Color.cyan;// line col
+    public int damage = 25;         // hit dmg
 
-    [Header("flash settings")]
-    public GameObject flashPrefab;
+    [Header("Flash set")]
+    public GameObject flashPrefab;  // flash fx
 
-    private LineRenderer lr;
-    private Vector3[] points;
+    private LineRenderer lr;        // line ref
+    private Vector3[] points;       // line pts
     private bool spawnedFlash = false;
     private GameObject flashInstance;
 
@@ -37,10 +37,10 @@ public class WhipSimple : MonoBehaviour
 
     void Update()
     {
-        // start pos = как было
+        // start pos
         Vector3 start = transform.position;
 
-        // end pos = строго по центру камеры
+        // end pos
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         Vector3 end = ray.GetPoint(length);
 
@@ -50,7 +50,7 @@ public class WhipSimple : MonoBehaviour
             float t = i / (float)(segments - 1);
             Vector3 basePos = Vector3.Lerp(start, end, t);
 
-            if (i < segments - 1) // wave до конца
+            if (i < segments - 1) // wave add
             {
                 float wave = Mathf.Sin(Time.time * waveSpeed - i * 0.5f)
                              * waveSize * (1f - t);
@@ -65,7 +65,7 @@ public class WhipSimple : MonoBehaviour
 
         lr.SetPositions(points);
 
-        // flash at tip
+        // flash tip
         Vector3 tip = points[segments - 1];
         if (flashPrefab != null)
         {
@@ -80,7 +80,7 @@ public class WhipSimple : MonoBehaviour
             }
         }
 
-        // hit check по всей линии
+        // hit check
         for (int i = 0; i < segments; i++)
         {
             Collider[] hits = Physics.OverlapSphere(points[i], 0.15f);
