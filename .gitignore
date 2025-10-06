@@ -38,3 +38,11 @@ Thumbs.db
 # Addressables кеши
 Assets/AddressableAssetsData/*/catalog_*_hash
 Assets/AddressableAssetsData/*/catalog_*_json
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+UserSettings/
+*_Data/
+*.resS
