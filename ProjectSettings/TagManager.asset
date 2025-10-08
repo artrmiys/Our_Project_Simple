@@ -8,6 +8,8 @@ TagManager:
   - Enemy
   - Collectables
   - Environment
+  - Surface_Theatre
+  - Surface_Outside
   layers:
   - Default
   - TransparentFX
@@ -17,7 +19,7 @@ TagManager:
   - UI
   - Player
   - Rope
-  - 
+  - Ground
   - 
   - 
   - 
