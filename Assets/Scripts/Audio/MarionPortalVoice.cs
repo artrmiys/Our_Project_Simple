@@ -6,11 +6,11 @@ public class MarionPortalVoice : MonoBehaviour
 {
     [Header("Voice Line")]
     public AudioClip firstPortalClip;
-    [Range(0f, 1f)] public float volume = 1f;
+    [Range(0f, 1f)] public float voiceVolume = 1f;
+    public AudioSource musicSource;
 
-    [Header("Music Fade")]
-    public AudioSource musicSource;      
-    [Range(0f, 1f)] public float fadeTo = 0.2f;
+    [Header("Fade Settings")]
+    [Range(0f, 1f)] public float fadeTo = 0.25f;
     public float fadeSpeed = 2f;
 
     [Header("Settings")]
@@ -24,7 +24,9 @@ public class MarionPortalVoice : MonoBehaviour
     {
         voiceSource = GetComponent<AudioSource>();
         voiceSource.playOnAwake = false;
-        voiceSource.spatialBlend = 1f;
+        voiceSource.loop = false;
+        voiceSource.spatialBlend = 0f; // 2D звук
+        voiceSource.volume = 1f;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -32,13 +34,14 @@ public class MarionPortalVoice : MonoBehaviour
         if (playOnlyOnce && hasPlayed) return;
         if (triggerOnPlayerOnly && !other.CompareTag("Player")) return;
 
-        StartCoroutine(PlayVoiceWithFade());
+        StartCoroutine(PlayVoiceAndFadeMusic());
     }
 
-    private IEnumerator PlayVoiceWithFade()
+    private IEnumerator PlayVoiceAndFadeMusic()
     {
         hasPlayed = true;
 
+        // Плавно приглушаем музыку
         if (musicSource != null)
         {
             float start = musicSource.volume;
@@ -49,9 +52,13 @@ public class MarionPortalVoice : MonoBehaviour
             }
         }
 
-        voiceSource.PlayOneShot(firstPortalClip, volume);
+        // Проигрываем фразу
+        if (firstPortalClip != null)
+            voiceSource.PlayOneShot(firstPortalClip, voiceVolume);
+
         yield return new WaitForSeconds(firstPortalClip.length);
 
+        // Возвращаем музыку обратно
         if (musicSource != null)
         {
             float start = musicSource.volume;
