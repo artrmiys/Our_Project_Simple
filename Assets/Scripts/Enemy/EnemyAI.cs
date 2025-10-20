@@ -55,9 +55,17 @@ public class EnemyAI : MonoBehaviour
             agent.stoppingDistance = 0.2f;
             agent.SetDestination(patrolPoints[patrolIndex].position);
         }
+
+        //if (!agent.isOnNavMesh)
+        //{
+        //    if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+        //        agent.Warp(hit.position);
+        //}
     }
 
-    void Update()
+
+
+void Update()
     {
         if (isDead) return;
 
@@ -147,7 +155,10 @@ public class EnemyAI : MonoBehaviour
     {
         if (!animator) return;
         float speed = agent.velocity.magnitude;
+        Debug.Log("Speed = " + speed);  // ← проверяем скорость
         animator.SetFloat("Speed", speed);
+
+
     }
 
     // === Death ===
