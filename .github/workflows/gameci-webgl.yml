@@ -1,0 +1,39 @@
+name: Build and Deploy Unity WebGL (Game CI)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build WebGL using Game CI
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Получаем код
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Устанавливаем Unity
+      - name: Setup Unity
+        uses: game-ci/unity-setup@v2
+        with:
+          unityVersion: 2022.3.5f1
+          components: WebGL
+
+      # 3️⃣ Собираем проект
+      - name: Build project
+        uses: game-ci/unity-builder@v4
+        with:
+          targetPlatform: WebGL
+          projectPath: .
+          outputPath: build/WebGLBuild
+
+      # 4️⃣ Публикуем билд в gh-pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: build/WebGLBuild
