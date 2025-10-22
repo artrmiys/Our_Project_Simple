@@ -82,4 +82,4 @@ jobs:
 
       # === 4. Show deploy URL ===
       - name: ✅ Deployment URL
-        run: echo "🌐 Deployed to: https://artrmiys.github.io/Our_Project_Simple/"
+        run: echo "🌐 Deployed to https://artrmiys.github.io/Our_Project_Simple/"
