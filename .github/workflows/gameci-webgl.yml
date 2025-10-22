@@ -23,7 +23,7 @@ jobs:
           unityVersion: 2022.3.5f1
           targetPlatform: WebGL
           projectPath: .
-          outputPath: build/WebGLBuild
+          buildsPath: build/WebGLBuild
 
       - name: Compress build (gzip + brotli)
         run: |
