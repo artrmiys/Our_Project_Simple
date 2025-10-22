@@ -69,4 +69,4 @@ jobs:
           force_orphan: true
 
       - name: ✅ Deployment success log
-        run: echo "✅ Deployed to: https://artrmiys.github.io/Our_Project_Simple/"
+        run: echo "✅ Deployed to https://artrmiys.github.io/Our_Project_Simple/"
