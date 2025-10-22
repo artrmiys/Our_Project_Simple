@@ -1,0 +1,77 @@
+name: Build and Deploy Unity WebGL to Netlify
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # позволяет запускать вручную из вкладки Actions
+
+jobs:
+  build-and-deploy:
+    name: 🧱 Build and Deploy WebGL
+    runs-on: ubuntu-latest
+
+    steps:
+      # === 1. Checkout repository ===
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # === 2. Clean old builds and cache ===
+      - name: 🧹 Clean old build and Library
+        run: |
+          echo "🧹 Deleting previous build and Library cache..."
+          rm -rf build/WebGL || true
+          rm -rf Library || true
+          mkdir -p build/WebGL
+
+      # === 3. Cache Unity Library ===
+      - name: 💾 Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL
+          restore-keys: Library-
+
+      # === 4. Free up disk space ===
+      - name: 🧼 Free up disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      # === 5. Build Unity project ===
+      - name: 🏗️ Build Unity WebGL
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: WebGL
+          buildsPath: build/WebGL
+
+      # === 6. Deploy to Netlify ===
+      - name: 🚀 Deploy to Netlify
+        uses: nwtgck/actions-netlify@v2.0.0
+        with:
+          publish-dir: build/WebGL
+          production-deploy: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Automated Unity WebGL build"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      # === 7. Show deployment link ===
+      - name: ✅ Deployment complete
+        run: |
+          echo "🌍 Your Unity WebGL build has been deployed to Netlify!"
+          echo "🔗 Open it at: https://${{ secrets.NETLIFY_SITE_ID }}.netlify.app/"
