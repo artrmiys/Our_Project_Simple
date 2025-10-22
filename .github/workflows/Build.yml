@@ -1,0 +1,55 @@
+name: Build Unity WebGL (GameCI)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build WebGL
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        targetPlatform:
+          - WebGL
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}
+          restore-keys: Library-
+
+      - name: Free disk space (optional)
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+
+      - name: Build with Unity Builder
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: |
+            {
+              "serial": "",
+              "type": "Personal",
+              "licenseVersion": 1
+            }
+        with:
+          projectPath: .
+          unityVersion: 2022.3.5f1
+          targetPlatform: ${{ matrix.targetPlatform }}
+          allowDirtyBuild: true
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebGLBuild
+          path: build/${{ matrix.targetPlatform }}
