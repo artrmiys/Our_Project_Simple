@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  # === 1. БИЛД ===
   buildWebGL:
     name: 🧱 Build for WebGL
     runs-on: ubuntu-latest
@@ -28,13 +28,10 @@ jobs:
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@v1.3.1
 
-      - name: Clean old build
-        run: |
-          echo "🧹 Cleaning previous build folder..."
-          rm -rf build/WebGL || true
-          mkdir -p build/WebGL
+      - name: Clean previous build folder
+        run: rm -rf build/WebGL || true
 
-      - name: Build project with Unity
+      - name: Build WebGL with Unity
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -46,13 +43,12 @@ jobs:
           unityVersion: 2022.3.5f1
           buildsPath: build/WebGL
 
-      - name: Upload WebGL build
-        uses: actions/upload-artifact@v4   # ✅ новая версия
+      - name: Upload WebGL Build Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: WebGL-build
           path: build/WebGL
 
-  # === 2. ДЕПЛОЙ ===
   deployToPages:
     name: 🚀 Deploy to GitHub Pages
     runs-on: ubuntu-latest
@@ -60,17 +56,17 @@ jobs:
 
     steps:
       - name: Download WebGL build
-        uses: actions/download-artifact@v4   # ✅ новая версия
+        uses: actions/download-artifact@v4
         with:
           name: WebGL-build
           path: build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4   # ✅ обновлён до v4
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: build/WebGL
-          force_orphan: true   # обнуляет старую историю gh-pages
+          force_orphan: true
 
-      - name: Print deployment URL
-        run: echo "🌐 Your build is live at: https://artrmiys.github.io/Our_Project_Simple/"
+      - name: ✅ Deployment success log
+        run: echo "✅ Deployed to: https://artrmiys.github.io/Our_Project_Simple/"
