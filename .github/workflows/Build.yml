@@ -1,55 +1,51 @@
-name: Build Unity WebGL (GameCI)
+name: Build project
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+  pull_request:
 
 jobs:
-  build:
-    name: Build WebGL
+  buildForAllSupportedPlatforms:
+    name: Build for ${{ matrix.targetPlatform }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         targetPlatform:
-          - WebGL
-    steps:
-      - uses: actions/checkout@v4
+          - WebGL               # WebGL build
 
+    steps:
+      # === 1. Checkout repository ===
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # === 2. Cache Unity Library to speed up builds ===
       - uses: actions/cache@v3
         with:
           path: Library
           key: Library-${{ matrix.targetPlatform }}
           restore-keys: Library-
 
-      - name: Free disk space (optional)
+      # === 3. Free up disk space (mostly for Android/iOS builds) ===
+      - if: matrix.targetPlatform == 'Android'
         uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: false
 
-      - name: Build with Unity Builder
-        uses: game-ci/unity-builder@v4
+      # === 4. Build using GameCI Unity Builder ===
+      - uses: game-ci/unity-builder@v4
         env:
-          UNITY_LICENSE: |
-            {
-              "serial": "",
-              "type": "Personal",
-              "licenseVersion": 1
-            }
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
           projectPath: .
-          unityVersion: 2022.3.5f1
           targetPlatform: ${{ matrix.targetPlatform }}
-          allowDirtyBuild: true
+          unityVersion: 2022.3.5f1
+          buildsPath: build/${{ matrix.targetPlatform }}
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+      # === 5. Upload build artifact ===
+      - uses: actions/upload-artifact@v3
         with:
-          name: WebGLBuild
+          name: Build-${{ matrix.targetPlatform }}
           path: build/${{ matrix.targetPlatform }}
