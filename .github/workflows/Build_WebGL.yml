@@ -1,0 +1,80 @@
+name: Build and Deploy WebGL
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build WebGL
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL
+          restore-keys: |
+            Library-
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+
+      - name: Clean previous build
+        run: rm -rf build/WebGL || true
+
+      - name: Build WebGL with Unity
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: .
+          targetPlatform: WebGL
+          unityVersion: 2022.3.5f1
+          buildsPath: build/WebGL
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WebGL-build
+          path: build/WebGL
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: WebGL-build
+          path: build
+
+      - name: Extract artifact
+        run: |
+          echo "Unzipping artifact..."
+          unzip -o build/WebGL/*.zip -d build/WebGL || true
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/WebGL
+          force_orphan: true
+
+      - name: Deployment URL
+        run: echo "✅ Deployed to https://artrmiys.github.io/Our_Project_Simple/"
