@@ -15,26 +15,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Unity
-        uses: game-ci/unity-setup@v2
-        with:
-          unityVersion: 2022.3.5f1
-          components: WebGL
-
-      - name: Build project
-        uses: game-ci/unity-builder@v4
+      - name: Build Unity WebGL
+        uses: webbertakken/unity-builder@v2
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
+          unityVersion: 2022.3.5f1
           targetPlatform: WebGL
           projectPath: .
           outputPath: build/WebGLBuild
 
       - name: Compress build (gzip + brotli)
         run: |
-          sudo apt install -y brotli
+          sudo apt-get update
+          sudo apt-get install -y brotli
           cd build/WebGLBuild
-          find . -type f -name "*.js" -o -name "*.data" -o -name "*.wasm" | while read f; do
+          find . -type f \( -name "*.js" -o -name "*.data" -o -name "*.wasm" \) | while read f; do
             gzip -kf "$f"
             brotli -kf "$f"
           done
