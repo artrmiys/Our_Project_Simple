@@ -1,36 +1,44 @@
-name: Build and Deploy Unity WebGL (Game CI)
+name: Build and Deploy Unity WebGL (GameCI)
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build WebGL using Game CI
+    name: Build WebGL and Deploy
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Получаем код
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Устанавливаем Unity
       - name: Setup Unity
         uses: game-ci/unity-setup@v2
         with:
           unityVersion: 2022.3.5f1
           components: WebGL
 
-      # 3️⃣ Собираем проект
       - name: Build project
         uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           targetPlatform: WebGL
           projectPath: .
           outputPath: build/WebGLBuild
 
-      # 4️⃣ Публикуем билд в gh-pages
+      - name: Compress build (gzip + brotli)
+        run: |
+          sudo apt install -y brotli
+          cd build/WebGLBuild
+          find . -type f -name "*.js" -o -name "*.data" -o -name "*.wasm" | while read f; do
+            gzip -kf "$f"
+            brotli -kf "$f"
+          done
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
