@@ -1,0 +1,46 @@
+name: Build Unity WebGL
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  buildWebGL:
+    name: Build for WebGL
+    runs-on: ubuntu-latest
+
+    steps:
+      # === 1. Checkout repository ===
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # === 2. Cache Unity Library ===
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL
+          restore-keys: Library-
+
+      # === 3. Free up disk space (helps on GitHub runners) ===
+      - uses: jlumbroso/free-disk-space@v1.3.1
+
+      # === 4. Build using GameCI Unity Builder ===
+      - uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: .
+          targetPlatform: WebGL
+          unityVersion: 2022.3.5f1
+          buildsPath: build/WebGL
+
+      # === 5. Upload build artifact (new v4 version) ===
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-WebGL
+          path: build/WebGL
