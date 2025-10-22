@@ -1,0 +1,59 @@
+name: Build and Deploy Unity WebGL to Netlify
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    name: 🧱 Build and Deploy WebGL
+    runs-on: ubuntu-latest
+
+    steps:
+      # === 1. Checkout repository ===
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # === 2. Cache Unity Library ===
+      - uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-WebGL
+          restore-keys: Library-
+
+      # === 3. Free up disk space ===
+      - uses: jlumbroso/free-disk-space@v1.3.1
+
+      # === 4. Clean previous build ===
+      - name: Clean old WebGL build
+        run: rm -rf build/WebGL || true
+
+      # === 5. Build project ===
+      - name: Build Unity project
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: WebGL
+          buildsPath: build/WebGL
+
+      # === 6. Deploy to Netlify ===
+      - name: 🚀 Deploy to Netlify
+        uses: nwtgck/actions-netlify@v2.0.0
+        with:
+          publish-dir: build/WebGL
+          production-deploy: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Automated Unity WebGL build"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+      # === 7. Show URL in logs ===
+      - name: ✅ Show deployment URL
+        run: echo "🌍 Build deployed to Netlify! Check your site URL in the logs above 👆"
