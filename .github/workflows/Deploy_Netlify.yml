@@ -17,22 +17,26 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      # === 2. Cache Unity Library ===
+      # === 2. Clean old builds and cache ===
+      - name: 🧹 Clean old build and Library
+        run: |
+          echo "Deleting previous build and Library cache..."
+          rm -rf build/WebGL || true
+          rm -rf Library || true
+          mkdir -p build/WebGL
+
+      # === 3. Cache Unity Library ===
       - uses: actions/cache@v4
         with:
           path: Library
           key: Library-WebGL
           restore-keys: Library-
 
-      # === 3. Free up disk space ===
+      # === 4. Free up disk space ===
       - uses: jlumbroso/free-disk-space@v1.3.1
 
-      # === 4. Clean previous build ===
-      - name: Clean old WebGL build
-        run: rm -rf build/WebGL || true
-
-      # === 5. Build project ===
-      - name: Build Unity project
+      # === 5. Build Unity project ===
+      - name: 🧩 Build Unity WebGL
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -54,6 +58,9 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-      # === 7. Show URL in logs ===
-      - name: ✅ Show deployment URL
-        run: echo "🌍 Build deployed to Netlify! Check your site URL in the logs above 👆"
+      # === 7. Show deployment link ===
+      - name: ✅ Deployment complete
+        run: |
+          echo ""
+          echo "🌍 Your Unity WebGL build has been deployed to Netlify!"
+          echo "🔗 Visit your site at: https://app.netlify.com/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys"
