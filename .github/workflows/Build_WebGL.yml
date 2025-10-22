@@ -1,4 +1,4 @@
-name: Build and Deploy WebGL
+name: Build and Deploy Unity WebGL to GitHub Pages (with full logs + auto unzip)
 
 on:
   push:
@@ -14,29 +14,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # === 1. Checkout ===
-      - name: Checkout repository
+      - name: 🧩 Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           lfs: true
+          fetch-depth: 0
 
-      # === 2. Cache Unity Library ===
-      - uses: actions/cache@v4
+      - name: ⚙️ Cache Unity Library
+        uses: actions/cache@v4
         with:
           path: Library
           key: Library-WebGL
           restore-keys: Library-
 
-      # === 3. Free disk space ===
-      - uses: jlumbroso/free-disk-space@v1.3.1
+      - name: 🧹 Clean previous build
+        run: |
+          echo "🧹 Cleaning previous build..."
+          rm -rf build/WebGL || true
+          mkdir -p build/WebGL
+          echo "✅ Clean done"
 
-      # === 4. Clean old build ===
-      - name: Clean old build folder
-        run: rm -rf build/WebGL || true
-
-      # === 5. Build Unity WebGL ===
-      - name: Build Unity WebGL
+      - name: 🏗️ Build Unity WebGL
         uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -46,8 +44,13 @@ jobs:
           targetPlatform: WebGL
           buildsPath: build/WebGL
 
-      # === 6. Upload artifact ===
-      - name: Upload artifact
+      - name: 🧾 Log built structure
+        run: |
+          echo "📁 === Contents of build/WebGL ==="
+          ls -lah build/WebGL || true
+          echo "==============================="
+
+      - name: 📦 Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: WebGL-build
@@ -59,27 +62,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # === 1. Download build ===
-      - name: Download build artifact
+      - name: 📥 Download artifact
         uses: actions/download-artifact@v4
         with:
           name: WebGL-build
-          path: build_zip
+          path: build
 
-      # === 2. Unzip build ===
-      - name: Unzip WebGL build
+      - name: 🔍 Inspect artifact
         run: |
-          mkdir -p build
-          find build_zip -type f -name "*.zip" -exec unzip -o {} -d build \; || echo "No zip found — already unpacked."
+          echo "🔍 Checking downloaded files:"
+          ls -lah build
+          du -sh build || true
+          echo "==============================="
 
-      # === 3. Deploy to GitHub Pages ===
-      - name: Deploy to GitHub Pages
+      - name: 📂 Unzip or copy files
+        run: |
+          mkdir -p public
+          if ls build/*.zip 1> /dev/null 2>&1; then
+            echo "🧩 Found ZIP artifact — extracting..."
+            unzip -o build/*.zip -d public/
+          else
+            echo "📦 No ZIP found, copying build directly..."
+            cp -r build/* public/ || true
+          fi
+
+          echo "📁 === Contents of public ==="
+          ls -lah public || true
+          echo "📂 Subdirectories:"
+          find public -maxdepth 2 -type d
+          echo "==============================="
+
+      - name: 🚀 Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: build/WebGL
+          publish_dir: public
           force_orphan: true
 
-      # === 4. Show deploy URL ===
-      - name: ✅ Deployment URL
-        run: echo "🌐 Deployed to https://artrmiys.github.io/Our_Project_Simple/"
+      - name: ✅ Deployment complete
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "🌍 Visit your site at:"
+          echo "➡️  https://artrmiys.github.io/Our_Project_Simple/"
