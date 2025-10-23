@@ -1,4 +1,4 @@
-name: Build Unity Windows
+name: Build Windows
 
 on:
   push:
@@ -9,25 +9,19 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
-    name: Build Unity (Windows)
+  buildWindows:
+    name: 🪟 Build Windows Standalone
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+          lfs: false
 
-      - uses: actions/cache@v4
-        with:
-          path: Library
-          key: Library-Windows
-          restore-keys: Library-
-
-      - uses: jlumbroso/free-disk-space@v1.3.1
-
-      - uses: game-ci/unity-builder@v4
+      - name: Build Windows with Unity
+        uses: game-ci/unity-builder@v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
@@ -35,19 +29,10 @@ jobs:
         with:
           projectPath: .
           targetPlatform: StandaloneWindows64
-          buildsPath: build
-          allowDirtyBuild: true
+          buildsPath: build/Windows
 
-      - name: Upload artifact
+      - name: Upload Windows build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Marion-Windows
-          path: build/StandaloneWindows64
-
-      - name: Create Release and Upload Asset
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: latest
-          files: build/StandaloneWindows64/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Windows-Build
+          path: build/Windows
