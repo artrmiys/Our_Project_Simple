@@ -8,27 +8,35 @@ public class PlayerAttack : MonoBehaviour
     public GameObject whipPrefab;
 
     [Header("pickup")]
-    public bool hasWhip = false;   // будет true после подбора ниток
+    [Tooltip("true only after pickup")]
+    public bool hasWhip = false;   // ❗ must be false at start
 
     [Header("sound")]
     public AudioSource audioSource;
     public AudioClip whipSound;
 
-    private bool isAttacking = false;
+    bool isAttacking = false;
+
+    void Start()
+    {
+        // force disable at start
+        hasWhip = false;
+    }
 
     void Update()
     {
-        if (hasWhip && Input.GetMouseButtonDown(0) && !isAttacking)
-        {
+        // no whip — no attack
+        if (!hasWhip) return;
+
+        // mouse attack
+        if (Input.GetMouseButtonDown(0) && !isAttacking)
             StartCoroutine(SpawnWhip());
-        }
     }
 
     IEnumerator SpawnWhip()
     {
         isAttacking = true;
 
-        // delay before spawn
         yield return new WaitForSeconds(0.25f);
 
         // create whip
@@ -38,15 +46,14 @@ public class PlayerAttack : MonoBehaviour
         if (audioSource && whipSound)
             audioSource.PlayOneShot(whipSound);
 
-        // cooldown
         yield return new WaitForSeconds(0.4f);
-
         isAttacking = false;
     }
 
-    // вызовется из WhipPickup
+    // called when pickup triggered
     public void CollectWhip()
     {
         hasWhip = true;
+        Debug.Log("Whip collected!"); 
     }
 }

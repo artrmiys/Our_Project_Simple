@@ -42,10 +42,16 @@ public class PlayerMovement : MonoBehaviour
         // attack animation
         if (Input.GetMouseButtonDown(0))
         {
+            PlayerAttack pa = GetComponent<PlayerAttack>();
+            if (pa == null || !pa.hasWhip)
+                return;
+
             if (anim) anim.SetTrigger("Stab");
-            // stop turn
             turning = false;
         }
+
+
+
 
         // animation stop when stubbing
         float x = isStabbing ? 0f : Input.GetAxisRaw("Horizontal");

@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(LineRenderer))]
@@ -12,15 +13,19 @@ public class WhipSimple : MonoBehaviour
     public float waveSpeed = 20f;   // wave spd
     public float thickness = 0.05f; // line wid
     public Color color = Color.cyan;// line col
-    public int damage = 25;         // hit dmg
+    public int damage = 1;          // hit dmg
 
     [Header("Flash set")]
     public GameObject flashPrefab;  // flash fx
 
-    private LineRenderer lr;        // line ref
-    private Vector3[] points;       // line pts
+    private LineRenderer lr;
+    private Vector3[] points;
     private bool spawnedFlash = false;
     private GameObject flashInstance;
+
+    // track hits and cooldown
+    private Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
+    private float hitCooldown = 0.2f; // delay between hits
 
     void Start()
     {
@@ -37,20 +42,16 @@ public class WhipSimple : MonoBehaviour
 
     void Update()
     {
-        // start pos
         Vector3 start = transform.position;
-
-        // end pos
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         Vector3 end = ray.GetPoint(length);
 
-        // build line
         for (int i = 0; i < segments; i++)
         {
             float t = i / (float)(segments - 1);
             Vector3 basePos = Vector3.Lerp(start, end, t);
 
-            if (i < segments - 1) // wave add
+            if (i < segments - 1)
             {
                 float wave = Mathf.Sin(Time.time * waveSpeed - i * 0.5f)
                              * waveSize * (1f - t);
@@ -86,12 +87,22 @@ public class WhipSimple : MonoBehaviour
             Collider[] hits = Physics.OverlapSphere(points[i], 0.15f);
             foreach (Collider col in hits)
             {
-                EnemyHealth enemy = col.GetComponent<EnemyHealth>();
-                if (enemy != null)
+                if (col.CompareTag("Player")) continue;
+
+                Health target = col.GetComponent<Health>();
+                if (target)
                 {
-                    enemy.TakeDamage(damage);
-                    if (CameraShake.Instance != null)
-                        CameraShake.Instance.Shake();
+                    // check cooldown
+                    if (!lastHit.ContainsKey(target) || Time.time - lastHit[target] > hitCooldown)
+                    {
+                        target.TakeDamage(damage);
+                        lastHit[target] = Time.time;
+
+                        Debug.Log($"Whip hit {col.name} for {damage}");
+
+                        if (CameraShake.Instance != null)
+                            CameraShake.Instance.Shake();
+                    }
                 }
             }
         }
@@ -100,7 +111,6 @@ public class WhipSimple : MonoBehaviour
     IEnumerator DestroyAfter(float t)
     {
         yield return new WaitForSeconds(t);
-
         if (flashInstance != null) Destroy(flashInstance);
         Destroy(gameObject);
     }
