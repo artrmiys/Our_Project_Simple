@@ -29,7 +29,7 @@ public class HealthBar3D : MonoBehaviour
 
         // === Левый край остаётся на месте ===
         float offset = (fullWidth - fullWidth * hpPercent) * 0.5f;
-        transform.position = startPos + transform.right * offset;
+        transform.position = startPos - transform.right * offset;
 
         // === Вращение по горизонтали (вокруг оси Y) ===
         transform.Rotate(Vector3.left * rotationSpeed * Time.deltaTime, Space.World);
