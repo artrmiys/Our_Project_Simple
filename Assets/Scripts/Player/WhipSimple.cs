@@ -17,11 +17,13 @@ public class WhipSimple : MonoBehaviour
 
     [Header("Flash set")]
     public GameObject flashPrefab;  // flash fx
+    public float flashHitScale = 2f; // во сколько раз увеличить при хите
 
     private LineRenderer lr;
     private Vector3[] points;
     private bool spawnedFlash = false;
     private GameObject flashInstance;
+    private Vector3 flashDefaultScale = Vector3.one;
 
     // track hits and cooldown
     private Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
@@ -74,6 +76,7 @@ public class WhipSimple : MonoBehaviour
             {
                 flashInstance = Instantiate(flashPrefab, tip, Quaternion.identity);
                 spawnedFlash = true;
+                flashDefaultScale = flashInstance.transform.localScale; // запомним базовый размер
             }
             else
             {
@@ -98,10 +101,16 @@ public class WhipSimple : MonoBehaviour
                         target.TakeDamage(damage);
                         lastHit[target] = Time.time;
 
-                        Debug.Log($"Whip hit {col.name} for {damage}");
+                        // УВЕЛИЧИВАЕМ КОНЕЦ КНУТА
+                        if (flashInstance != null)
+                        {
+                            flashInstance.transform.localScale = flashDefaultScale * flashHitScale;
+                        }
 
                         if (CameraShake.Instance != null)
                             CameraShake.Instance.Shake();
+
+                        Debug.Log($"Whip hit {col.name} for {damage}");
                     }
                 }
             }

@@ -7,22 +7,25 @@ using UnityEngine.AI;
 public class EnemyAI : MonoBehaviour
 {
     [Header("References")]
-    public Animator animator;        // enemy animator
-    public Transform player;         // player target
+    public Animator animator;
+    public Transform player;
 
     [Header("Movement")]
-    public Transform[] patrolPoints; // patrol route
-    public float patrolSpeed = 1f;   // walk speed
-    public float chaseSpeed = 5f;    // run speed
-    public float visionRange = 8f;   // see distance
-    public float visionAngle = 120f; // view angle
+    public Transform[] patrolPoints;
+    public float patrolSpeed = 1f;
+    public float chaseSpeed = 5f;
+    public float visionRange = 8f;
+    public float visionAngle = 120f;
 
     [Header("Combat")]
-    public float attackDistance = 1.8f;  // attack range
-    public float attackForce = 5f;       // push power
-    public float attackCooldown = 1.8f;  // delay attack
-    public float attackDamage = 1f; // attack power
+    public float attackDistance = 1.8f;
+    public float attackForce = 5f;
+    public float attackCooldown = 1.8f;
+    public float attackDamage = 1f;
 
+    [Header("Chase settings")]
+    public float loseSightTime = 5f;
+    public float maxChaseDistance = 25f;
 
     NavMeshAgent agent;
     Health health;
@@ -43,18 +46,15 @@ public class EnemyAI : MonoBehaviour
         health = GetComponent<Health>();
         if (!animator) animator = GetComponentInChildren<Animator>();
 
-        // agent setup
         agent.updatePosition = true;
         agent.updateRotation = true;
         agent.angularSpeed = 720f;
         agent.autoBraking = false;
 
-        // accel setup
         normalAcceleration = 20f;
         combatAcceleration = normalAcceleration * 2f;
         agent.acceleration = normalAcceleration;
 
-        // death link
         health.onDied.AddListener(HandleDeath);
     }
 
@@ -71,26 +71,28 @@ public class EnemyAI : MonoBehaviour
         float dist = Vector3.Distance(transform.position, player.position);
         bool canSee = CanSeePlayer();
 
-        // near attack
+        // атака
         if (dist <= attackDistance && Time.time - lastAttackTime > attackCooldown)
         {
             Attack();
             return;
         }
 
-        // see player
+        // видим игрока
         if (canSee && dist <= visionRange)
         {
-            lostPlayerTimer = 0f;
             if (!inCombat)
                 EnterCombat();
+
+            lostPlayerTimer = 0f;
             FollowPlayer();
         }
-        // lost player
         else if (inCombat)
         {
+            FollowPlayer();
+
             lostPlayerTimer += Time.deltaTime;
-            if (lostPlayerTimer > 3f)
+            if (lostPlayerTimer > loseSightTime && dist > visionRange * 1.5f && dist > attackDistance + 0.5f)
             {
                 ExitCombat();
                 StartPatrol();
@@ -104,7 +106,6 @@ public class EnemyAI : MonoBehaviour
         UpdateAnimation();
     }
 
-    // === states ===
     void EnterCombat()
     {
         inCombat = true;
@@ -113,6 +114,7 @@ public class EnemyAI : MonoBehaviour
         agent.acceleration = combatAcceleration;
         agent.stoppingDistance = attackDistance;
         animator.SetBool("isChasing", true);
+        lostPlayerTimer = 0f;
     }
 
     void ExitCombat()
@@ -120,14 +122,17 @@ public class EnemyAI : MonoBehaviour
         inCombat = false;
         isChasing = false;
         agent.acceleration = normalAcceleration;
+        agent.stoppingDistance = 0.1f;
         animator.SetBool("isChasing", false);
     }
 
-    // === patrol ===
     void Patrol()
     {
         agent.speed = patrolSpeed;
         agent.stoppingDistance = 0.1f;
+
+        if (patrolPoints == null || patrolPoints.Length == 0)
+            return;
 
         if (!agent.hasPath || agent.remainingDistance < 0.2f)
         {
@@ -138,13 +143,11 @@ public class EnemyAI : MonoBehaviour
 
     void StartPatrol()
     {
-        ExitCombat();
         isAttacking = false;
         agent.isStopped = false;
         Patrol();
     }
 
-    // === chase ===
     void FollowPlayer()
     {
         if (!player) return;
@@ -155,25 +158,27 @@ public class EnemyAI : MonoBehaviour
                 agent.Warp(hit.position);
         }
 
-        if (Time.frameCount % 10 == 0)
+        agent.isStopped = false;
+
+        bool success = agent.SetDestination(player.position);
+        if (!success)
         {
-            agent.isStopped = false;
-            bool success = agent.SetDestination(player.position);
-            if (!success)
-            {
-                agent.ResetPath();
-                agent.SetDestination(player.position);
-            }
+            agent.ResetPath();
+            agent.SetDestination(player.position);
         }
     }
 
-    // === vision ===
     bool CanSeePlayer()
     {
+        float dist = Vector3.Distance(transform.position, player.position);
+
+        if (dist < 2f)
+            return true;
+
         Vector3 dir = (player.position - transform.position).normalized;
         float angle = Vector3.Angle(transform.forward, dir);
         if (angle > visionAngle * 0.5f) return false;
-        if (Vector3.Distance(transform.position, player.position) > visionRange) return false;
+        if (dist > visionRange) return false;
 
         if (Physics.Raycast(transform.position + Vector3.up, dir, out RaycastHit hit, visionRange))
             return hit.collider.CompareTag("Player");
@@ -181,7 +186,6 @@ public class EnemyAI : MonoBehaviour
         return false;
     }
 
-    // === attack ===
     void Attack()
     {
         if (isAttacking) return;
@@ -197,25 +201,12 @@ public class EnemyAI : MonoBehaviour
 
     void PerformAttackHit()
     {
-      
-
-        if (!player)
-        {
-            //Debug.Log("❌ player is null!");
-            return;
-        }
+        if (!player) return;
 
         Health playerHealth = player.GetComponent<Health>();
-        if (!playerHealth)
-        {
-            //Debug.Log("❌ player has no Health component!");
-            return;
-        }
+        if (playerHealth)
+            playerHealth.TakeDamage(attackDamage);
 
-        playerHealth.TakeDamage(attackDamage);
-        //Debug.Log($"✅ player took {attackDamage} damage");
-
-        // отбрасывание
         Rigidbody prb = player.GetComponent<Rigidbody>();
         if (prb)
         {
@@ -223,11 +214,9 @@ public class EnemyAI : MonoBehaviour
             prb.AddForce(dir * attackForce, ForceMode.Impulse);
         }
 
-        // тряска камеры
         if (CameraShake.Instance != null)
             CameraShake.Instance.Shake();
     }
-
 
     void EndAttack()
     {
@@ -236,20 +225,30 @@ public class EnemyAI : MonoBehaviour
 
         if (player && !isDead)
         {
-            isChasing = true;
+            if (!inCombat) EnterCombat();
             agent.ResetPath();
             agent.SetDestination(player.position);
         }
     }
 
-    // === anim ===
     void UpdateAnimation()
     {
         if (!animator) return;
-        animator.SetFloat("Speed", agent.velocity.magnitude);
+        if (isDead)
+        {
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("isDead", true);
+            return;
+        }
+        if (isAttacking) return;
+
+        float speed = agent.velocity.magnitude;
+        bool closeToPlayer = inCombat && agent.remainingDistance <= attackDistance + 0.2f;
+
+        animator.SetFloat("Speed", speed);
+        animator.SetBool("isChasing", inCombat && !closeToPlayer);
     }
 
-    // === death ===
     void HandleDeath()
     {
         if (isDead) return;
