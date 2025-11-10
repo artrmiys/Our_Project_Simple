@@ -1,7 +1,4 @@
-﻿
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -21,56 +18,50 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundMask;
 
     [Header("Animation / Model")]
-    public Animator anim;         // Animator
-    public Transform modelRoot;   // object for rotation
-    public float turnSpeed = 10f; // turn speed
+    public Animator anim;
+    public Transform modelRoot;
+    public float turnSpeed = 10f;
 
-    
     Vector3 velocity;
     bool turning;
     Quaternion targetTurnRot;
 
     void Update()
     {
-        // floor ground
+        // ground / gravity reset
         bool grounded = controller.isGrounded;
         if (grounded && velocity.y < 0f) velocity.y = -2f;
 
-        // animation stop when stubbing
+        // we use animator state to lock movement
         bool isStabbing = anim && anim.GetCurrentAnimatorStateInfo(0).IsName("Stabbing");
 
-        // attack animation
-        if (Input.GetMouseButtonDown(0))
+        // attack input (both LMB and RMB)
+        if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
         {
             PlayerAttack pa = GetComponent<PlayerAttack>();
-            if (pa == null || !pa.hasWhip)
-                return;
-
-            if (anim) anim.SetTrigger("Stab");
-            turning = false;
+            // only attack if player has whip
+            if (pa != null && pa.hasWhip)
+            {
+                if (anim) anim.SetTrigger("Stab");
+                turning = false;
+            }
         }
 
-
-
-
-        // animation stop when stubbing
+        // movement input (blocked while stabbing)
         float x = isStabbing ? 0f : Input.GetAxisRaw("Horizontal");
         float z = isStabbing ? 0f : Input.GetAxisRaw("Vertical");
         Vector3 input = new Vector3(x, 0f, z);
         float move01 = Mathf.Clamp01(input.magnitude);
 
-
         bool isWalking = !isStabbing && Input.GetKey(KeyCode.LeftShift);
         float targetSpeed = isWalking ? walkSpeed : runSpeed;
 
-
-        // horizontal move
+        // world move dir
         Vector3 moveWorld = transform.TransformDirection(input.normalized) * (move01 > 0f ? targetSpeed : 0f);
 
-        // if stay stop move animation
         if (move01 > 0f) turning = false;
 
-        // don't jump when attack
+        // jump (not during stab)
         if (!isStabbing && Input.GetButtonDown("Jump") && grounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -84,7 +75,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 motion = new Vector3(moveWorld.x, velocity.y, moveWorld.z) * Time.deltaTime;
         controller.Move(motion);
 
-        // turn to move
+        // rotate model to move dir
         if (!isStabbing && modelRoot && move01 > 0f)
         {
             Vector3 flat = new Vector3(moveWorld.x, 0f, moveWorld.z);
@@ -95,7 +86,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // a/d iddle
+        // idle turns
         if (!isStabbing && modelRoot && move01 <= 0.001f)
         {
             if (Input.GetKeyDown(KeyCode.A))
@@ -112,20 +103,18 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // turn slow
+        // smooth turn
         if (!isStabbing && turning && modelRoot)
         {
             modelRoot.rotation = Quaternion.Slerp(modelRoot.rotation, targetTurnRot, Time.deltaTime * turnSpeed);
             if (Quaternion.Angle(modelRoot.rotation, targetTurnRot) < 1f) turning = false;
         }
 
-        // animation parameters
+        // animator params
         if (anim)
         {
-            anim.SetFloat("Speed", move01);        // 0..1 — Idle/Walk/Run
-            anim.SetBool("IsRunning", !isWalking); // run default
+            anim.SetFloat("Speed", move01);
+            anim.SetBool("IsRunning", !isWalking);
         }
-
-
     }
 }

@@ -3,57 +3,67 @@ using UnityEngine;
 
 public class PlayerAttack : MonoBehaviour
 {
-    [Header("whip")]
+    [Header("Spawn")]
     public Transform handPoint;
-    public GameObject whipPrefab;
 
-    [Header("pickup")]
-    [Tooltip("true only after pickup")]
-    public bool hasWhip = false;   // ❗ must be false at start
+    [Header("Prefabs")]
+    public GameObject whipPrefab;        // LMB
+    public GameObject whipWidePrefab;    // RMB
 
-    [Header("sound")]
+    [Header("State")]
+    public bool hasWhip = false;         // станет true после pickup
+
+    [Header("Sound (optional)")]
     public AudioSource audioSource;
     public AudioClip whipSound;
 
     bool isAttacking = false;
 
-    void Start()
-    {
-        // force disable at start
-        hasWhip = false;
-    }
-
     void Update()
     {
-        // no whip — no attack
+        // если не подобрали — не бьём
         if (!hasWhip) return;
 
-        // mouse attack
+        // ЛКМ
         if (Input.GetMouseButtonDown(0) && !isAttacking)
-            StartCoroutine(SpawnWhip());
+            StartCoroutine(SpawnWhip(whipPrefab, false));
+
+        // ПКМ
+        if (Input.GetMouseButtonDown(1) && !isAttacking)
+            StartCoroutine(SpawnWhip(whipWidePrefab, true));
     }
 
-    IEnumerator SpawnWhip()
+    // это зовёт pickup
+    public void CollectWhip()
+    {
+        hasWhip = true;   // ← вот тут должно быть true
+    }
+
+    IEnumerator SpawnWhip(GameObject prefab, bool isWide)
     {
         isAttacking = true;
 
+        // небольшая задержка под анимацию
         yield return new WaitForSeconds(0.25f);
 
-        // create whip
-        Instantiate(whipPrefab, handPoint.position, handPoint.rotation);
+        if (prefab && handPoint)
+        {
+            GameObject go = Instantiate(prefab, handPoint.position, handPoint.rotation);
+            go.transform.SetParent(handPoint, true);
 
-        // play sound
+            if (isWide)
+            {
+                var wide = go.GetComponent<WhipWide>();
+                if (wide != null)
+                    wide.SetOwner(transform);
+            }
+        }
+
         if (audioSource && whipSound)
             audioSource.PlayOneShot(whipSound);
 
+        // кд
         yield return new WaitForSeconds(0.4f);
         isAttacking = false;
-    }
-
-    // called when pickup triggered
-    public void CollectWhip()
-    {
-        hasWhip = true;
-        Debug.Log("Whip collected!"); 
     }
 }

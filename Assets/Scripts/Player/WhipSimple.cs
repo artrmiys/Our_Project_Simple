@@ -11,32 +11,41 @@ public class WhipSimple : MonoBehaviour
     public float lifetime = 0.4f;   // life sec
     public float waveSize = 0.5f;   // wave amp
     public float waveSpeed = 20f;   // wave spd
-    public float thickness = 0.05f; // line wid
-    public Color color = Color.cyan;// line col
-    public int damage = 1;          // hit dmg
+    public float thickness = 0.05f; // base width
+    public Color color = Color.cyan;
+    public int damage = 1;
 
     [Header("Flash set")]
-    public GameObject flashPrefab;  // flash fx
-    public float flashHitScale = 2f; // во сколько раз увеличить при хите
+    public GameObject flashPrefab;
+    public float flashHitScale = 2f;
 
-    private LineRenderer lr;
-    private Vector3[] points;
-    private bool spawnedFlash = false;
-    private GameObject flashInstance;
-    private Vector3 flashDefaultScale = Vector3.one;
+    LineRenderer lr;
+    Vector3[] points;
+    bool spawnedFlash = false;
+    GameObject flashInstance;
+    Vector3 flashDefaultScale = Vector3.one;
 
-    // track hits and cooldown
-    private Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
-    private float hitCooldown = 0.2f; // delay between hits
+    // hit cd
+    Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
+    float hitCooldown = 0.2f;
 
     void Start()
     {
         lr = GetComponent<LineRenderer>();
         lr.positionCount = segments;
-        lr.startWidth = thickness;
-        lr.endWidth = thickness * 0.2f;
         lr.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
         lr.startColor = lr.endColor = color;
+
+        // base widths
+        lr.startWidth = thickness;
+        lr.endWidth = thickness * 0.2f;
+
+        // 👇 make tip thicker so we SEE the end
+        var curve = new AnimationCurve();
+        curve.AddKey(0f, thickness);          // start
+        curve.AddKey(0.8f, thickness);        // most of the whip
+        curve.AddKey(1f, thickness * 4f);     // fat tip
+        lr.widthCurve = curve;
 
         points = new Vector3[segments];
         StartCoroutine(DestroyAfter(lifetime));
@@ -45,6 +54,8 @@ public class WhipSimple : MonoBehaviour
     void Update()
     {
         Vector3 start = transform.position;
+
+        // ray from screen center
         Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         Vector3 end = ray.GetPoint(length);
 
@@ -68,7 +79,7 @@ public class WhipSimple : MonoBehaviour
 
         lr.SetPositions(points);
 
-        // flash tip
+        // tip fx
         Vector3 tip = points[segments - 1];
         if (flashPrefab != null)
         {
@@ -76,7 +87,7 @@ public class WhipSimple : MonoBehaviour
             {
                 flashInstance = Instantiate(flashPrefab, tip, Quaternion.identity);
                 spawnedFlash = true;
-                flashDefaultScale = flashInstance.transform.localScale; // запомним базовый размер
+                flashDefaultScale = flashInstance.transform.localScale;
             }
             else
             {
@@ -84,7 +95,7 @@ public class WhipSimple : MonoBehaviour
             }
         }
 
-        // hit check
+        // hits
         for (int i = 0; i < segments; i++)
         {
             Collider[] hits = Physics.OverlapSphere(points[i], 0.15f);
@@ -95,22 +106,16 @@ public class WhipSimple : MonoBehaviour
                 Health target = col.GetComponent<Health>();
                 if (target)
                 {
-                    // check cooldown
                     if (!lastHit.ContainsKey(target) || Time.time - lastHit[target] > hitCooldown)
                     {
                         target.TakeDamage(damage);
                         lastHit[target] = Time.time;
 
-                        // УВЕЛИЧИВАЕМ КОНЕЦ КНУТА
                         if (flashInstance != null)
-                        {
                             flashInstance.transform.localScale = flashDefaultScale * flashHitScale;
-                        }
 
                         if (CameraShake.Instance != null)
                             CameraShake.Instance.Shake();
-
-                        Debug.Log($"Whip hit {col.name} for {damage}");
                     }
                 }
             }
