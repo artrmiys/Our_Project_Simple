@@ -70,6 +70,9 @@ public class Health : MonoBehaviour
 
         if (CompareTag("Player"))
         {
+            // СБРОС ВВОДА С КЛАВЫ (WASD и т.п.), чтобы сразу перестало реагировать
+            Input.ResetInputAxes();
+
             // show ui
             if (deathScreenObject != null)
                 deathScreenObject.SetActive(true);
