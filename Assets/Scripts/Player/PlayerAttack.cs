@@ -7,11 +7,15 @@ public class PlayerAttack : MonoBehaviour
     public Transform handPoint;
 
     [Header("Prefabs")]
-    public GameObject whipPrefab;        // LMB
-    public GameObject whipWidePrefab;    // RMB
+    public GameObject whipPrefab;        // LMB basic
+    public GameObject whipWidePrefab;    // RMB wide
 
     [Header("State")]
-    public bool hasWhip = false;         // станет true после pickup
+    public bool hasWhipBasic = false;    // after basic pickup
+    public bool hasWhipWide = false;     // after wide pickup
+
+    // legacy flag for old scripts (PlayerMovement etc.)
+    [HideInInspector] public bool hasWhip = false;  // true if any whip
 
     [Header("Sound (optional)")]
     public AudioSource audioSource;
@@ -21,29 +25,50 @@ public class PlayerAttack : MonoBehaviour
 
     void Update()
     {
-        // если не подобрали — не бьём
-        if (!hasWhip) return;
+        // keep legacy flag in sync
+        hasWhip = hasWhipBasic || hasWhipWide;
 
-        // ЛКМ
-        if (Input.GetMouseButtonDown(0) && !isAttacking)
+        if (isAttacking) return;
+
+        // LMB – basic whip
+        if (hasWhipBasic && Input.GetMouseButtonDown(0))
+        {
             StartCoroutine(SpawnWhip(whipPrefab, false));
+        }
 
-        // ПКМ
-        if (Input.GetMouseButtonDown(1) && !isAttacking)
+        // RMB – wide whip
+        if (hasWhipWide && Input.GetMouseButtonDown(1))
+        {
             StartCoroutine(SpawnWhip(whipWidePrefab, true));
+        }
     }
 
-    // это зовёт pickup
+    // basic pickup (LMB)
+    public void CollectWhipBasic()
+    {
+        hasWhipBasic = true;
+        hasWhip = true;
+    }
+
+    // wide pickup (RMB)
+    public void CollectWhipWide()
+    {
+        hasWhipWide = true;
+        hasWhip = true;
+    }
+
+    // старый метод, если где-то уже вызывается
     public void CollectWhip()
     {
-        hasWhip = true;   // ← вот тут должно быть true
+        hasWhipBasic = true;
+        hasWhip = true;
     }
 
     IEnumerator SpawnWhip(GameObject prefab, bool isWide)
     {
         isAttacking = true;
 
-        // небольшая задержка под анимацию
+        // small delay for anim
         yield return new WaitForSeconds(0.25f);
 
         if (prefab && handPoint)
@@ -62,7 +87,7 @@ public class PlayerAttack : MonoBehaviour
         if (audioSource && whipSound)
             audioSource.PlayOneShot(whipSound);
 
-        // кд
+        // cooldown
         yield return new WaitForSeconds(0.4f);
         isAttacking = false;
     }

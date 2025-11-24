@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
 
@@ -26,9 +27,35 @@ public class Health : MonoBehaviour
     public UnityEvent<float, float> onHealthChanged;
     public UnityEvent onDied;
 
+    [Header("Player freeze on death")]
+    [Tooltip("Tag used to detect player object")]
+    public string playerTag = "Player";
+
+    [Tooltip("Root object of the player (for disabling scripts)")]
+    public Transform playerRoot;                // usually player GameObject
+
+    [Tooltip("Optional player rigidbody")]
+    public Rigidbody playerRigidbody;           // optional
+
+    [Tooltip("Extra scripts to disable on death (movement, look, rope, etc.)")]
+    public MonoBehaviour[] scriptsToDisableOnDeath;   // drag RopeFromHabrador, movement, etc.
+
+    [Tooltip("Disable ALL MonoBehaviours on playerRoot hierarchy (except this Health)")]
+    public bool disableAllPlayerScriptsOnDeath = true;
+
     void Awake()
     {
         currentHP = maxHP;
+
+        // auto-setup for player
+        if (CompareTag(playerTag))
+        {
+            if (!playerRoot)
+                playerRoot = transform;
+
+            if (!playerRigidbody && playerRoot)
+                playerRigidbody = playerRoot.GetComponent<Rigidbody>();
+        }
     }
 
     public void TakeDamage(float amount)
@@ -68,16 +95,16 @@ public class Health : MonoBehaviour
         onDied?.Invoke();
         Debug.Log($"{gameObject.name} died");
 
-        if (CompareTag("Player"))
+        if (CompareTag(playerTag))
         {
-            // СБРОС ВВОДА С КЛАВЫ (WASD и т.п.), чтобы сразу перестало реагировать
-            Input.ResetInputAxes();
+            // hard freeze player input / movement / rope
+            FreezePlayerOnDeath();
 
-            // show ui
+            // show death UI
             if (deathScreenObject != null)
                 deathScreenObject.SetActive(true);
 
-            // make temp runner
+            // temp runner to restart scene after delay
             GameObject go = new GameObject("DeathHandler");
             var handler = go.AddComponent<DeathHandler>();
             handler.delay = deathScreenTime;
@@ -85,13 +112,57 @@ public class Health : MonoBehaviour
             // remove extras
             DestroyExtraObjects();
 
-            // remove player now
+            // remove player object
             Destroy(gameObject);
         }
         else
         {
             DestroyExtraObjects();
             Destroy(gameObject);
+        }
+    }
+
+    void FreezePlayerOnDeath()
+    {
+        // stop keyboard / mouse axes (WASD etc.)
+        Input.ResetInputAxes();
+
+        if (!playerRoot)
+            return;
+
+        // rigidbody freeze
+        if (!playerRigidbody)
+            playerRigidbody = playerRoot.GetComponent<Rigidbody>();
+
+        if (playerRigidbody != null)
+        {
+            playerRigidbody.velocity = Vector3.zero;
+            playerRigidbody.angularVelocity = Vector3.zero;
+            playerRigidbody.isKinematic = true;
+            playerRigidbody.constraints = RigidbodyConstraints.FreezeAll;
+        }
+
+        // disable explicit scripts (movement, look, rope)
+        if (scriptsToDisableOnDeath != null)
+        {
+            foreach (var mb in scriptsToDisableOnDeath)
+            {
+                if (mb != null)
+                    mb.enabled = false;
+            }
+        }
+
+        // disable ALL scripts on player hierarchy (except this Health)
+        if (disableAllPlayerScriptsOnDeath && playerRoot != null)
+        {
+            var all = playerRoot.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in all)
+            {
+                if (mb == null || !mb.enabled) continue;
+                if (mb == this) continue; // keep Health alive to finish Die()
+
+                mb.enabled = false;
+            }
         }
     }
 

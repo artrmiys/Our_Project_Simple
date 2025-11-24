@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 
 public class ProximityAura : MonoBehaviour
@@ -7,6 +7,11 @@ public class ProximityAura : MonoBehaviour
     public Transform player;
     public Image auraImage;
     public Transform target;
+
+    [Header("Unlock (optional)")]
+    [Tooltip("If assigned, aura will start hiding only after this controller is unlocked")]
+    public EnableScriptsOnKey unlockController;
+    public bool useUnlock = true;   // if false, behaves like original
 
     [Header("Settings")]
     public float triggerDistance = 5f;
@@ -44,8 +49,16 @@ public class ProximityAura : MonoBehaviour
     {
         if (!auraImage || !player) return;
 
+        // 🔒 можно ли сейчас прятать ауру?
+        bool canHideNow = true;
+        if (useUnlock && unlockController != null && !unlockController.IsUnlocked)
+        {
+            // до нажатия E: запрещаем переход в режим скрытия
+            canHideNow = false;
+        }
+
         // target was destroyed OR just disabled -> hide
-        if (target == null || !target.gameObject.activeInHierarchy)
+        if (canHideNow && (target == null || !target.gameObject.activeInHierarchy))
         {
             isHiding = true;
         }
@@ -58,7 +71,8 @@ public class ProximityAura : MonoBehaviour
 
         float dist = Vector3.Distance(player.position, target.position);
 
-        if (dist < hideDistance)
+        // прячемся при касании / близости — ТОЛЬКО если уже можно
+        if (canHideNow && dist < hideDistance)
         {
             isHiding = true;
             return;

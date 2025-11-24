@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
@@ -8,6 +8,8 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private Button startButton;
     [SerializeField] private Button exitButton;
     [SerializeField] private Button controlButton;
+    [SerializeField] private Button prototypeButton;     // ← NEW: Prototype button
+
     [SerializeField] private GameObject controlsPanel;   // panel ref
     [SerializeField] private Button closeControlsButton; // close ref
     [SerializeField] private GameObject[] hideOnControls; // objects to hide
@@ -19,12 +21,14 @@ public class MainMenu : MonoBehaviour
         exitButton.onClick.AddListener(ExitGame);
         controlButton.onClick.AddListener(ShowControls);
         closeControlsButton.onClick.AddListener(HideControls);
+        prototypeButton.onClick.AddListener(StartPrototype);  // ← NEW
 
         // hover effect
         AddHoverEffect(startButton);
         AddHoverEffect(exitButton);
         AddHoverEffect(controlButton);
         AddHoverEffect(closeControlsButton);
+        AddHoverEffect(prototypeButton);                       // ← NEW
 
         controlsPanel.SetActive(false); // hidden start
     }
@@ -39,6 +43,12 @@ public class MainMenu : MonoBehaviour
     public void StartGame()
     {
         SceneManager.LoadScene("Level_1"); // load scene
+    }
+
+    // NEW: load prototype level
+    public void StartPrototype()
+    {
+        SceneManager.LoadScene("Prototype"); // имя сцены в Build Settings
     }
 
     public void ExitGame()

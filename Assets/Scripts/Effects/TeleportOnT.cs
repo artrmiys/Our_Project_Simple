@@ -2,23 +2,28 @@ using UnityEngine;
 
 public class TeleportOnT : MonoBehaviour
 {
-    [Header("Who to move")]
-    public Transform player;                  // если пусто — найдём по тегу
-    public string playerTag = "Player";
-    public CharacterController playerCtrl;    // необязательно
-    public Rigidbody playerRb;                // необязательно (если есть)
+    [System.Serializable]
+    public class TeleportEntry
+    {
+        public string name;                 // optional label in inspector
+        public Transform targetPoint;       // where to teleport
+        public KeyCode key = KeyCode.T;     // which key
+        public bool matchRotation = true;   // copy rotation from target
+        public bool useCtrlHeightOffset = true; // add CC height offset
+    }
 
-    [Header("Where to move")]
-    public Transform targetPoint;             // точка телепорта
+    [Header("Who to move")]
+    public Transform player;                  // player root
+    public string playerTag = "Player";
+    public CharacterController playerCtrl;    // optional
+    public Rigidbody playerRb;                // optional
+
+    [Header("Teleport points")]
+    public TeleportEntry[] teleports;         // list of points + keys
 
     [Header("Options")]
-    public KeyCode key = KeyCode.T;
-    public bool matchRotation = true;         // выровнять поворот как у target
-    public bool useCtrlHeightOffset = true;   // добавить offset по высоте CC (как в SimplePortal)
-    public bool resetVelocity = true;         // обнулить Rigidbody
-
-    [Header("Debug")]
-    public bool log = true;
+    public bool resetVelocity = true;         // zero RB velocity
+    public bool log = true;                   // debug log
 
     void Awake()
     {
@@ -33,51 +38,79 @@ public class TeleportOnT : MonoBehaviour
 
     void Update()
     {
-        if (!player || !targetPoint) return;
+        if (!player || teleports == null) return;
 
-        if (Input.GetKeyDown(key))
-            TeleportNow();
+        // check all entries
+        for (int i = 0; i < teleports.Length; i++)
+        {
+            var entry = teleports[i];
+            if (entry == null || entry.targetPoint == null) continue;
+
+            if (Input.GetKeyDown(entry.key))
+            {
+                TeleportNow(entry);
+                break; // one teleport per frame is enough
+            }
+        }
     }
 
-    public void TeleportNow()
+    public void TeleportNow(TeleportEntry entry)
     {
-        if (!player || !targetPoint) return;
+        if (!player || entry == null || entry.targetPoint == null) return;
 
-        // 1) отключаем CC на время телепорта
+        // disable CC during teleport
         bool hadCC = playerCtrl && playerCtrl.enabled;
         if (hadCC) playerCtrl.enabled = false;
 
-        // 2) считаем позицию
+        // compute target pos
         float offsetY = 0f;
-        if (useCtrlHeightOffset && playerCtrl) offsetY = playerCtrl.height * 0.5f;
+        if (entry.useCtrlHeightOffset && playerCtrl)
+            offsetY = playerCtrl.height * 0.5f;
 
-        Vector3 newPos = targetPoint.position + Vector3.up * offsetY;
+        Vector3 newPos = entry.targetPoint.position + Vector3.up * offsetY;
 
-        // 3) переносим
+        // move
         player.position = newPos;
-        if (matchRotation) player.rotation = targetPoint.rotation;
+        if (entry.matchRotation)
+            player.rotation = entry.targetPoint.rotation;
 
-        // 4) чистим физику
+        // reset physics
         if (resetVelocity && playerRb)
         {
             playerRb.velocity = Vector3.zero;
             playerRb.angularVelocity = Vector3.zero;
         }
 
-        // 5) возвращаем CC
+        // enable CC back
         if (hadCC) playerCtrl.enabled = true;
 
-        if (log) Debug.Log($"[TeleportOnT] Teleported to {newPos}");
+        if (log)
+            Debug.Log($"[TeleportOnT] Teleported '{player.name}' to {newPos} via key {entry.key}");
+    }
+
+    // overload to allow calling from other scripts by index
+    public void TeleportNow(int index)
+    {
+        if (teleports == null) return;
+        if (index < 0 || index >= teleports.Length) return;
+        TeleportNow(teleports[index]);
     }
 
     void OnDrawGizmosSelected()
     {
-        if (!targetPoint) return;
+        if (teleports == null) return;
+
         Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(targetPoint.position, 0.2f);
-        if (player)
+
+        for (int i = 0; i < teleports.Length; i++)
         {
-            Gizmos.DrawLine(player.position, targetPoint.position);
+            var entry = teleports[i];
+            if (entry == null || entry.targetPoint == null) continue;
+
+            Gizmos.DrawWireSphere(entry.targetPoint.position, 0.2f);
+
+            if (player)
+                Gizmos.DrawLine(player.position, entry.targetPoint.position);
         }
     }
 }

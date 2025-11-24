@@ -3,6 +3,9 @@ using UnityEngine;
 [RequireComponent(typeof(Collider))]
 public class PrisonKeyPickup : MonoBehaviour
 {
+    // глобальный флаг: вз€ли ли мы этот ключ
+    public static bool IsTaken { get; private set; } = false;
+
     [Tooltip("Tag of player object")]
     public string playerTag = "Player";
 
@@ -22,15 +25,14 @@ public class PrisonKeyPickup : MonoBehaviour
         if (!other.CompareTag(playerTag))
             return;
 
-        // find inventory UI in scene
-        InventoryUI inv = FindObjectOfType<InventoryUI>();
-        if (inv != null)
-        {
-            // show prison key slot
-            inv.AddItem("PrisonKey");
-        }
+        // помечаем, что ключ вз€т
+        IsTaken = true;
 
-        // just hide this pickup
+        // тут можешь оставить свою логику с InventoryUI, если нужно:
+        // InventoryUI inv = FindObjectOfType<InventoryUI>();
+        // if (inv != null) inv.AddItem("PrisonKey");
+
+        // просто спр€чем объект ключа
         Invoke(nameof(HideMe), hideDelay);
     }
 

@@ -1,25 +1,34 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class FlyCamera : MonoBehaviour
 {
     [Header("Timing")]
-    public float flyTime = 1.5f;        // how long the fly movement takes
-    public float waitAfter = 1.0f;      // how long to stay at the end
-    public float waitBefore = 1.0f;     // how long to wait before starting the fly movement
-    public float switchDelay = 1.0f;    // how long to wait before the whole sequence
+    public float flyTime = 1.5f;        // fly duration
+    public float waitAfter = 1.0f;      // stay at end
+    public float waitBefore = 1.0f;     // wait before fly
+    public float switchDelay = 1.0f;    // delay before sequence
 
     [Header("Cameras / UI")]
-    public Canvas flyCanvas;            // UI for this camera (optional)
-    public Camera mainCamera;           // main camera reference (can be auto-filled)
-    public float activeDepth = 10f;     // depth to use while fly camera is active
+    public Canvas flyCanvas;            // optional UI
+    public Camera mainCamera;           // main camera
+    public float activeDepth = 10f;     // depth when active
 
     [Header("Player freeze (optional)")]
-    public Transform player;                            // player root transform (auto-find by tag if null)
+    public Transform player;                    // player root
     public string playerTag = "Player";
-    public CharacterController playerController;        // optional
-    public Rigidbody playerRigidbody;                   // optional
-    public MonoBehaviour[] movementToDisable;           // drag&drop your movement scripts here
+    public CharacterController playerController; // optional CC
+    public Rigidbody playerRigidbody;           // optional RB
+
+    [Tooltip("Specific movement/look scripts to disable")]
+    public MonoBehaviour[] movementToDisable;   // drag your movement/look scripts
+
+    [Tooltip("Disable ALL scripts on player + children")]
+    public bool disableAllPlayerScripts = true; // hard freeze
+
+    [Tooltip("Scripts that must stay active even on hard freeze")]
+    public MonoBehaviour[] excludeFromAutoDisable; // e.g. Rope emission, ropes, VFX
 
     private Camera thisCam;
     private Transform fromPoint;
@@ -33,6 +42,13 @@ public class FlyCamera : MonoBehaviour
     private bool rbPrevKinematic;
     private RigidbodyConstraints rbPrevConstraints;
     private Vector3 rbPrevVelocity, rbPrevAngularVelocity;
+
+    // rotation lock
+    private bool lockPlayerRotation = false;
+    private Quaternion frozenPlayerRotation;
+
+    // auto disabled scripts cache
+    private List<MonoBehaviour> autoDisabledScripts = new List<MonoBehaviour>();
 
     private void Awake()
     {
@@ -66,9 +82,12 @@ public class FlyCamera : MonoBehaviour
         if (mainCamFromTrigger != null)
             mainCamera = mainCamFromTrigger;
 
-        // recheck player refs in case they appeared later
-        if (!player && GameObject.FindGameObjectWithTag(playerTag))
-            player = GameObject.FindGameObjectWithTag(playerTag).transform;
+        // recheck player refs
+        if (!player)
+        {
+            var go = GameObject.FindGameObjectWithTag(playerTag);
+            if (go) player = go.transform;
+        }
         if (!playerController && player) playerController = player.GetComponent<CharacterController>();
         if (!playerRigidbody && player) playerRigidbody = player.GetComponent<Rigidbody>();
 
@@ -95,16 +114,16 @@ public class FlyCamera : MonoBehaviour
         transform.position = fromPoint.position;
         transform.rotation = fromPoint.rotation;
 
-        // wait before movement (main camera is still on top)
+        // wait before movement (main camera still on top)
         yield return new WaitForSeconds(waitBefore);
 
-        // freeze player controls/physics
+        // freeze player
         FreezePlayer();
 
         // bring this camera to front
         thisCam.depth = activeDepth;
 
-        // keep main camera underneath
+        // keep main camera under
         if (mainCamera != null)
             mainCamera.depth = originalMainDepth;
 
@@ -112,7 +131,7 @@ public class FlyCamera : MonoBehaviour
         if (flyCanvas != null)
             flyCanvas.gameObject.SetActive(true);
 
-        // movement
+        // movement lerp
         float t = 0f;
         while (t < 1f)
         {
@@ -148,12 +167,38 @@ public class FlyCamera : MonoBehaviour
     {
         if (!player) return;
 
-        // disable arbitrary movement scripts
+        // lock current rotation
+        frozenPlayerRotation = player.rotation;
+        lockPlayerRotation = true;
+
+        // disable specific movement scripts
         if (movementToDisable != null)
         {
             foreach (var mb in movementToDisable)
             {
-                if (mb != null) mb.enabled = false;
+                if (mb != null && mb.enabled)
+                    mb.enabled = false;
+            }
+        }
+
+        // disable ALL scripts on player hierarchy if enabled
+        autoDisabledScripts.Clear();
+        if (disableAllPlayerScripts)
+        {
+            var all = player.GetComponentsInChildren<MonoBehaviour>(true);
+            foreach (var mb in all)
+            {
+                if (mb == null) continue;
+                if (!mb.enabled) continue;
+
+                // do not disable this FlyCamera
+                if (mb == this) continue;
+
+                // skip excluded scripts
+                if (IsInExcludeList(mb)) continue;
+
+                mb.enabled = false;
+                autoDisabledScripts.Add(mb);
             }
         }
 
@@ -174,10 +219,13 @@ public class FlyCamera : MonoBehaviour
             rbPrevKinematic = playerRigidbody.isKinematic;
             rbPrevConstraints = playerRigidbody.constraints;
 
-            // stop motion & freeze physics
+            // stop motion
             playerRigidbody.velocity = Vector3.zero;
             playerRigidbody.angularVelocity = Vector3.zero;
-            playerRigidbody.isKinematic = true; // or: playerRigidbody.constraints = RigidbodyConstraints.FreezeAll;
+
+            // freeze physics
+            playerRigidbody.constraints = RigidbodyConstraints.FreezeAll;
+            playerRigidbody.isKinematic = true;
         }
     }
 
@@ -194,16 +242,49 @@ public class FlyCamera : MonoBehaviour
         {
             playerRigidbody.isKinematic = rbPrevKinematic;
             playerRigidbody.constraints = rbPrevConstraints;
-            // не возвращаем скорость, оставляем ноль — чтобы игрок не «дернулся» после кат-сцены
+            // keep velocity zero
         }
 
-        // re-enable movement scripts
+        // re-enable auto disabled scripts
+        for (int i = 0; i < autoDisabledScripts.Count; i++)
+        {
+            if (autoDisabledScripts[i] != null)
+                autoDisabledScripts[i].enabled = true;
+        }
+        autoDisabledScripts.Clear();
+
+        // re-enable specific movement scripts
         if (movementToDisable != null)
         {
             foreach (var mb in movementToDisable)
             {
-                if (mb != null) mb.enabled = true;
+                if (mb != null)
+                    mb.enabled = true;
             }
         }
+
+        // unlock rotation
+        lockPlayerRotation = false;
+    }
+
+    private void LateUpdate()
+    {
+        // hard lock rotation
+        if (lockPlayerRotation && player)
+        {
+            player.rotation = frozenPlayerRotation;
+        }
+    }
+
+    // helper: check exclude list
+    private bool IsInExcludeList(MonoBehaviour mb)
+    {
+        if (excludeFromAutoDisable == null) return false;
+        for (int i = 0; i < excludeFromAutoDisable.Length; i++)
+        {
+            if (excludeFromAutoDisable[i] == mb)
+                return true;
+        }
+        return false;
     }
 }
