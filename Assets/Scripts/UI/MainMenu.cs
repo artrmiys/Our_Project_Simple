@@ -8,47 +8,51 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private Button startButton;
     [SerializeField] private Button exitButton;
     [SerializeField] private Button controlButton;
-    [SerializeField] private Button prototypeButton;     // ← NEW: Prototype button
+    [SerializeField] private Button prototypeButton;   // prototype level
 
-    [SerializeField] private GameObject controlsPanel;   // panel ref
-    [SerializeField] private Button closeControlsButton; // close ref
-    [SerializeField] private GameObject[] hideOnControls; // objects to hide
+    [SerializeField] private GameObject controlsPanel; // controls panel
+    [SerializeField] private Button closeControlsButton;
+    [SerializeField] private GameObject[] hideOnControls; // UI to hide with panel
 
     private void Start()
     {
+        // ensure proper state for menu
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
         // button clicks
         startButton.onClick.AddListener(StartGame);
         exitButton.onClick.AddListener(ExitGame);
         controlButton.onClick.AddListener(ShowControls);
         closeControlsButton.onClick.AddListener(HideControls);
-        prototypeButton.onClick.AddListener(StartPrototype);  // ← NEW
+        prototypeButton.onClick.AddListener(StartPrototype);
 
-        // hover effect
+        // hover effects
         AddHoverEffect(startButton);
         AddHoverEffect(exitButton);
         AddHoverEffect(controlButton);
         AddHoverEffect(closeControlsButton);
-        AddHoverEffect(prototypeButton);                       // ← NEW
+        AddHoverEffect(prototypeButton);
 
-        controlsPanel.SetActive(false); // hidden start
+        controlsPanel.SetActive(false);
     }
 
     private void AddHoverEffect(Button btn)
     {
         var hover = btn.gameObject.AddComponent<HoverScale>();
-        hover.scaleFactor = 1.3f; // size factor
-        hover.speed = 10f;        // anim speed
+        hover.scaleFactor = 1.3f;
+        hover.speed = 10f;
     }
 
     public void StartGame()
     {
-        SceneManager.LoadScene("Level_1"); // load scene
+        SceneManager.LoadScene("Level_1");
     }
 
-    // NEW: load prototype level
     public void StartPrototype()
     {
-        SceneManager.LoadScene("Prototype"); // имя сцены в Build Settings
+        SceneManager.LoadScene("Prototype");
     }
 
     public void ExitGame()
@@ -63,9 +67,8 @@ public class MainMenu : MonoBehaviour
 
     public void ShowControls()
     {
-        controlsPanel.SetActive(true); // show panel
+        controlsPanel.SetActive(true);
 
-        // hide objects
         foreach (var obj in hideOnControls)
         {
             if (obj != null) obj.SetActive(false);
@@ -74,9 +77,8 @@ public class MainMenu : MonoBehaviour
 
     public void HideControls()
     {
-        controlsPanel.SetActive(false); // hide panel
+        controlsPanel.SetActive(false);
 
-        // show back objects
         foreach (var obj in hideOnControls)
         {
             if (obj != null) obj.SetActive(true);
@@ -84,11 +86,11 @@ public class MainMenu : MonoBehaviour
     }
 }
 
-// hover effect
+// hover scale effect for buttons
 public class HoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {
-    public float scaleFactor = 1.3f; // size factor
-    public float speed = 10f;        // anim speed
+    public float scaleFactor = 1.3f;
+    public float speed = 10f;
 
     private Vector3 originalScale;
     private Vector3 targetScale;
@@ -101,16 +103,20 @@ public class HoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandl
 
     private void Update()
     {
-        transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * speed);
+        transform.localScale = Vector3.Lerp(
+            transform.localScale,
+            targetScale,
+            Time.deltaTime * speed
+        );
     }
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        targetScale = originalScale * scaleFactor; // grow
+        targetScale = originalScale * scaleFactor;
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        targetScale = originalScale; // reset
+        targetScale = originalScale;
     }
 }

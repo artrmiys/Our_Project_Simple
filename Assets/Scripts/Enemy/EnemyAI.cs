@@ -56,12 +56,38 @@ public class EnemyAI : MonoBehaviour
         agent.acceleration = normalAcceleration;
 
         health.onDied.AddListener(HandleDeath);
+
     }
 
     void Start()
     {
+        // auto-find player if not set
+        if (!player)
+        {
+            GameObject p = GameObject.FindGameObjectWithTag("Player");
+            if (p) player = p.transform;
+        }
+
+        // DEBUG ↓↓↓
+        Debug.Log($"{name} START: player={player}, onNav={agent.isOnNavMesh}");
+
+        // try snap to NavMesh
+        if (!agent.isOnNavMesh)
+        {
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+            {
+                agent.Warp(hit.position); // put on navmesh
+                Debug.Log($"{name}: warped to NavMesh at {hit.position}");
+            }
+            else
+            {
+                Debug.LogError($"{name}: NO NAVMESH NEARBY!");
+            }
+        }
+
         StartPatrol();
     }
+
 
     void Update()
     {
@@ -258,4 +284,5 @@ public class EnemyAI : MonoBehaviour
         animator.SetBool("isDead", true);
         Destroy(gameObject, 3f);
     }
+
 }
