@@ -10,35 +10,35 @@ public class EnemyAI : MonoBehaviour
     public Animator animator;
     public Transform player;
 
-    [Header("Movement")]
+    [Header("Movement Settings")]
     public Transform[] patrolPoints;
     public float patrolSpeed = 1f;
     public float chaseSpeed = 5f;
-    public float visionRange = 8f;
-    public float visionAngle = 120f;
 
-    [Header("Combat")]
+    [Header("Vision Settings")]
+    public float visionRange = 10f;
+    public float visionAngle = 150f;
+
+    [Header("Combat Settings")]
     public float attackDistance = 1.8f;
-    public float attackForce = 5f;
     public float attackCooldown = 1.8f;
     public float attackDamage = 1f;
 
-    [Header("Chase settings")]
+    [Header("Chase Behavior")]
     public float loseSightTime = 5f;
-    public float maxChaseDistance = 25f;
 
-    NavMeshAgent agent;
-    Health health;
+    // Internal
+    private NavMeshAgent agent;
+    private Health health;
+    private int patrolIndex = 0;
+    private bool isDead;
+    private bool inCombat;
+    private bool isAttacking;
+    private float lastAttackTime;
+    private float lostPlayerTimer;
 
-    int patrolIndex = 0;
-    bool isDead;
-    bool isChasing;
-    bool isAttacking;
-    bool inCombat;
-    float lastAttackTime;
-    float lostPlayerTimer;
-    float normalAcceleration;
-    float combatAcceleration;
+    private float baseAcceleration;
+    private float combatAcceleration;
 
     void Awake()
     {
@@ -47,78 +47,72 @@ public class EnemyAI : MonoBehaviour
         if (!animator) animator = GetComponentInChildren<Animator>();
 
         agent.updatePosition = true;
-        agent.updateRotation = true;
+        agent.updateRotation = false; // we rotate manually
         agent.angularSpeed = 720f;
         agent.autoBraking = false;
 
-        normalAcceleration = 20f;
-        combatAcceleration = normalAcceleration * 2f;
-        agent.acceleration = normalAcceleration;
+        baseAcceleration = 20f;
+        combatAcceleration = baseAcceleration * 2f;
+        agent.acceleration = baseAcceleration;
 
-        health.onDied.AddListener(HandleDeath);
-
+        health.onDied.AddListener(OnDeath);
     }
 
     void Start()
     {
-        // auto-find player if not set
+        // Auto detect player
         if (!player)
         {
             GameObject p = GameObject.FindGameObjectWithTag("Player");
             if (p) player = p.transform;
         }
 
-        // DEBUG ↓↓↓
-        Debug.Log($"{name} START: player={player}, onNav={agent.isOnNavMesh}");
-
-        // try snap to NavMesh
+        // Snap to NavMesh if needed
         if (!agent.isOnNavMesh)
         {
             if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
-            {
-                agent.Warp(hit.position); // put on navmesh
-                Debug.Log($"{name}: warped to NavMesh at {hit.position}");
-            }
-            else
-            {
-                Debug.LogError($"{name}: NO NAVMESH NEARBY!");
-            }
+                agent.Warp(hit.position);
         }
 
         StartPatrol();
     }
 
-
     void Update()
     {
         if (isDead || !player) return;
-        if (isAttacking) return;
 
-        float dist = Vector3.Distance(transform.position, player.position);
-        bool canSee = CanSeePlayer();
-
-        // атака
-        if (dist <= attackDistance && Time.time - lastAttackTime > attackCooldown)
+        // Stop logic during attack animation
+        if (isAttacking)
         {
-            Attack();
+            UpdateAnimation();
             return;
         }
 
-        // видим игрока
-        if (canSee && dist <= visionRange)
+        float dist = Vector3.Distance(transform.position, player.position);
+        bool seesPlayer = CanSeePlayer();
+
+        // --- ATTACK ---
+        if (dist <= attackDistance && Time.time - lastAttackTime > attackCooldown)
+        {
+            StartAttack();
+            return;
+        }
+
+        // --- CHASE ---
+        if (seesPlayer && dist <= visionRange)
         {
             if (!inCombat)
                 EnterCombat();
 
             lostPlayerTimer = 0f;
-            FollowPlayer();
+            ChasePlayer();
         }
         else if (inCombat)
         {
-            FollowPlayer();
-
+            ChasePlayer();
             lostPlayerTimer += Time.deltaTime;
-            if (lostPlayerTimer > loseSightTime && dist > visionRange * 1.5f && dist > attackDistance + 0.5f)
+
+            if (lostPlayerTimer > loseSightTime && dist > attackDistance + 0.5f)
             {
                 ExitCombat();
                 StartPatrol();
@@ -130,35 +124,64 @@ public class EnemyAI : MonoBehaviour
         }
 
         UpdateAnimation();
+        RotateTowardsMovement();
     }
 
-    void EnterCombat()
+    // ---------------------------------
+    // ROTATION FIX (NO MORE SLIDING)
+    // ---------------------------------
+
+    void RotateTowardsMovement()
     {
-        inCombat = true;
-        isChasing = true;
-        agent.speed = chaseSpeed;
-        agent.acceleration = combatAcceleration;
-        agent.stoppingDistance = attackDistance;
-        animator.SetBool("isChasing", true);
-        lostPlayerTimer = 0f;
+        if (agent.velocity.sqrMagnitude > 0.1f)
+        {
+            Vector3 dir = agent.velocity.normalized;
+            dir.y = 0;
+
+            Quaternion targetRot = Quaternion.LookRotation(dir);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 10f);
+        }
     }
 
-    void ExitCombat()
+    // ---------------------------------
+    // VISION SYSTEM
+    // ---------------------------------
+
+    bool CanSeePlayer()
     {
-        inCombat = false;
-        isChasing = false;
-        agent.acceleration = normalAcceleration;
-        agent.stoppingDistance = 0.1f;
-        animator.SetBool("isChasing", false);
+        if (!player) return false;
+
+        Vector3 eyePos = transform.position + Vector3.up * 1.6f;
+        Vector3 targetPos = player.position + Vector3.up * 1.2f;
+
+        Vector3 dir = targetPos - eyePos;
+        float dist = dir.magnitude;
+
+        if (dist > visionRange)
+            return false;
+
+        dir.Normalize();
+
+        float angle = Vector3.Angle(transform.forward, dir);
+        if (angle > visionAngle * 0.5f)
+            return false;
+
+        if (Physics.Raycast(eyePos, dir, out RaycastHit hit, visionRange))
+            return hit.collider.CompareTag("Player");
+
+        return false;
     }
+
+    // ---------------------------------
+    // PATROL
+    // ---------------------------------
 
     void Patrol()
     {
         agent.speed = patrolSpeed;
         agent.stoppingDistance = 0.1f;
 
-        if (patrolPoints == null || patrolPoints.Length == 0)
-            return;
+        if (patrolPoints == null || patrolPoints.Length == 0) return;
 
         if (!agent.hasPath || agent.remainingDistance < 0.2f)
         {
@@ -170,11 +193,17 @@ public class EnemyAI : MonoBehaviour
     void StartPatrol()
     {
         isAttacking = false;
+        inCombat = false;
+        agent.acceleration = baseAcceleration;
         agent.isStopped = false;
         Patrol();
     }
 
-    void FollowPlayer()
+    // ---------------------------------
+    // CHASE
+    // ---------------------------------
+
+    void ChasePlayer()
     {
         if (!player) return;
 
@@ -185,104 +214,120 @@ public class EnemyAI : MonoBehaviour
         }
 
         agent.isStopped = false;
+        agent.speed = chaseSpeed;
+        agent.acceleration = combatAcceleration;
 
-        bool success = agent.SetDestination(player.position);
-        if (!success)
-        {
-            agent.ResetPath();
-            agent.SetDestination(player.position);
-        }
+        agent.SetDestination(player.position);
     }
 
-    bool CanSeePlayer()
+    // ---------------------------------
+    // COMBAT STATE
+    // ---------------------------------
+
+    void EnterCombat()
     {
-        float dist = Vector3.Distance(transform.position, player.position);
+        inCombat = true;
+        agent.stoppingDistance = attackDistance;
+        agent.acceleration = combatAcceleration;
 
-        if (dist < 2f)
-            return true;
-
-        Vector3 dir = (player.position - transform.position).normalized;
-        float angle = Vector3.Angle(transform.forward, dir);
-        if (angle > visionAngle * 0.5f) return false;
-        if (dist > visionRange) return false;
-
-        if (Physics.Raycast(transform.position + Vector3.up, dir, out RaycastHit hit, visionRange))
-            return hit.collider.CompareTag("Player");
-
-        return false;
+        animator.SetBool("isChasing", true);
     }
 
-    void Attack()
+    void ExitCombat()
+    {
+        inCombat = false;
+        agent.stoppingDistance = 0.1f;
+        agent.acceleration = baseAcceleration;
+
+        animator.SetBool("isChasing", false);
+    }
+
+    // ---------------------------------
+    // ATTACK
+    // ---------------------------------
+
+    void StartAttack()
     {
         if (isAttacking) return;
 
         lastAttackTime = Time.time;
         isAttacking = true;
+
         agent.isStopped = true;
+        agent.velocity = Vector3.zero;
 
         animator.SetTrigger("Attack");
-        Invoke(nameof(PerformAttackHit), 0.35f);
-        Invoke(nameof(EndAttack), 0.9f);
+
+        Invoke(nameof(ApplyAttackDamage), 0.35f);
+        Invoke(nameof(FinishAttack), 0.9f);
     }
 
-    void PerformAttackHit()
+    void ApplyAttackDamage()
     {
         if (!player) return;
 
-        Health playerHealth = player.GetComponent<Health>();
-        if (playerHealth)
-            playerHealth.TakeDamage(attackDamage);
-
-        Rigidbody prb = player.GetComponent<Rigidbody>();
-        if (prb)
-        {
-            Vector3 dir = (player.position - transform.position).normalized;
-            prb.AddForce(dir * attackForce, ForceMode.Impulse);
-        }
+        Health ph = player.GetComponent<Health>();
+        if (ph)
+            ph.TakeDamage(attackDamage);
 
         if (CameraShake.Instance != null)
             CameraShake.Instance.Shake();
     }
 
-    void EndAttack()
+    void FinishAttack()
     {
         isAttacking = false;
-        agent.isStopped = false;
 
-        if (player && !isDead)
+        if (!isDead && player)
         {
-            if (!inCombat) EnterCombat();
+            if (!inCombat)
+                EnterCombat();
+
+            agent.isStopped = false;
             agent.ResetPath();
             agent.SetDestination(player.position);
         }
     }
 
+    // ---------------------------------
+    // ANIMATION
+    // ---------------------------------
+
     void UpdateAnimation()
     {
         if (!animator) return;
+
         if (isDead)
         {
             animator.SetFloat("Speed", 0f);
             animator.SetBool("isDead", true);
             return;
         }
+
         if (isAttacking) return;
 
         float speed = agent.velocity.magnitude;
-        bool closeToPlayer = inCombat && agent.remainingDistance <= attackDistance + 0.2f;
+        if (speed < 0.15f) speed = 0f;
 
         animator.SetFloat("Speed", speed);
-        animator.SetBool("isChasing", inCombat && !closeToPlayer);
+
+        bool isMoving = speed > 0.15f;
+        animator.SetBool("isChasing", inCombat && isMoving);
     }
 
-    void HandleDeath()
+    // ---------------------------------
+    // DEATH
+    // ---------------------------------
+
+    void OnDeath()
     {
         if (isDead) return;
-        isDead = true;
 
+        isDead = true;
         agent.isStopped = true;
+
         animator.SetBool("isDead", true);
+
         Destroy(gameObject, 3f);
     }
-
 }

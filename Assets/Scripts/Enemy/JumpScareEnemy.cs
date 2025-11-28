@@ -4,29 +4,27 @@ public class JumpScareEnemy : MonoBehaviour
 {
     [Header("settings")]
     public float triggerDistance = 5f;
-    public float jumpDuration = 0.1f;   // время полёта
-    public float jumpHeight = 2f;       // высота дуги
+    public float jumpDuration = 0.1f;
+    public float jumpHeight = 2f;
     public int damage = 20;
+    public float destroyDelay = 0.9f;
 
     [Header("refs")]
     public Transform player;
+    public GameObject smokeEffectPrefab;
 
     private bool triggered = false;
     private bool attacking = false;
 
     private Vector3 startPos;
-    private Vector3 targetPos;
     private float attackTimer = 0f;
 
     void Update()
     {
         if (!triggered && player != null)
         {
-            float dist = Vector3.Distance(transform.position, player.position);
-            if (dist <= triggerDistance)
-            {
+            if (Vector3.Distance(transform.position, player.position) <= triggerDistance)
                 TriggerAttack();
-            }
         }
 
         if (attacking)
@@ -34,17 +32,23 @@ public class JumpScareEnemy : MonoBehaviour
             attackTimer += Time.deltaTime;
             float t = Mathf.Clamp01(attackTimer / jumpDuration);
 
-            // траектория с дугой
+            // РѕР±РЅРѕРІР»СЏРµРј targetPos РєР°Р¶РґС‹Р№ РєР°РґСЂ
+            Vector3 targetPos = new Vector3(player.position.x, startPos.y, player.position.z);
+
             Vector3 flat = Vector3.Lerp(startPos, targetPos, t);
             float height = Mathf.Sin(t * Mathf.PI) * jumpHeight;
+
             transform.position = new Vector3(flat.x, flat.y + height, flat.z);
 
             if (t >= 1f)
             {
                 attacking = false;
-                // удар гарантирован в конце полёта
                 HitPlayer();
-                Destroy(gameObject, 0.5f);
+
+                if (smokeEffectPrefab != null)
+                    Instantiate(smokeEffectPrefab, transform.position, Quaternion.identity);
+
+                Destroy(gameObject, destroyDelay);
             }
         }
     }
@@ -54,8 +58,8 @@ public class JumpScareEnemy : MonoBehaviour
         triggered = true;
         attacking = true;
         attackTimer = 0f;
+
         startPos = transform.position;
-        targetPos = player.position; // цель фиксируется при старте прыжка
     }
 
     void HitPlayer()

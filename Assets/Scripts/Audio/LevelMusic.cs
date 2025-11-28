@@ -4,7 +4,7 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public class LevelMusicFader : MonoBehaviour
 {
-    public float fadeDuration = 1.5f; // секунды
+    public float fadeDuration = 1.5f;
     AudioSource levelAS;
 
     void Awake()

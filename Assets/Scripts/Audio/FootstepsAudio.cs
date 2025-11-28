@@ -30,7 +30,6 @@ public class FootstepAudio : MonoBehaviour
 
     private float stepTimer;
     private string currentSurface = "Surface_Theatre";
-    private bool wasGrounded = true;
 
     void Reset()
     {
@@ -43,29 +42,24 @@ public class FootstepAudio : MonoBehaviour
     {
         UpdateSurfaceByCast();
 
-        // прыжок
-        bool grounded = controller ? controller.isGrounded : true;
-        if (wasGrounded && !grounded && jumpClip && source && source.enabled)
-        {
-            source.pitch = Random.Range(pitchJitter.x, pitchJitter.y);
-            source.PlayOneShot(jumpClip, jumpVolume);
-        }
-        wasGrounded = grounded;
-
-        if (useAnimationEvents) return;
+        if (useAnimationEvents)
+            return;
 
         Vector3 vel = controller ? controller.velocity : Vector3.zero;
         float planarSpeed = new Vector2(vel.x, vel.z).magnitude;
 
-        bool isMoving = planarSpeed > 0.1f;
-        bool isGrounded = grounded;
+        bool grounded = controller ? controller.isGrounded : true;
 
-        if (!isGrounded || !isMoving)
+        bool isMoving = planarSpeed > 0.1f;
+
+        // No steps if in air OR not moving
+        if (!grounded || !isMoving)
         {
             stepTimer = 0f;
             return;
         }
 
+        // Step timing
         float interval = Mathf.Max(0.1f, baseStepInterval - planarSpeed * speedToIntervalFactor);
         stepTimer -= Time.deltaTime;
 
@@ -127,15 +121,25 @@ public class FootstepAudio : MonoBehaviour
 
         AudioClip clip = null;
 
-        if (currentSurface == "Surface_Outside" && outsideClips != null && outsideClips.Length > 0)
+        if (currentSurface == "Surface_Outside" && outsideClips.Length > 0)
             clip = outsideClips[Random.Range(0, outsideClips.Length)];
-        else if (theatreClips != null && theatreClips.Length > 0)
+        else if (theatreClips.Length > 0)
             clip = theatreClips[Random.Range(0, theatreClips.Length)];
 
         if (!clip) return;
 
         source.pitch = Random.Range(pitchJitter.x, pitchJitter.y);
         source.PlayOneShot(clip, volume);
+    }
+
+    // Jump sound called manually from PlayerMovement
+    public void PlayJumpSound()
+    {
+        if (!jumpClip || !source || !source.enabled)
+            return;
+
+        source.pitch = Random.Range(pitchJitter.x, pitchJitter.y);
+        source.PlayOneShot(jumpClip, jumpVolume);
     }
 
     public void AnimEvent_Footstep() => PlayFootstep();

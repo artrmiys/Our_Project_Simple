@@ -22,24 +22,33 @@ public class PlayerMovement : MonoBehaviour
     public Transform modelRoot;
     public float turnSpeed = 10f;
 
+    [Header("Audio")]
+    public FootstepAudio footstepAudio;   // <-- Added
+
     Vector3 velocity;
     bool turning;
     Quaternion targetTurnRot;
 
+    void Start()
+    {
+        // Auto-grab FootstepAudio if missing
+        if (!footstepAudio)
+            footstepAudio = GetComponent<FootstepAudio>();   
+    }
+
     void Update()
     {
-        // ground / gravity reset
+        // Ground reset
         bool grounded = controller.isGrounded;
         if (grounded && velocity.y < 0f) velocity.y = -2f;
 
-        // we use animator state to lock movement
+        // Check if stabbing animation locks input
         bool isStabbing = anim && anim.GetCurrentAnimatorStateInfo(0).IsName("Stabbing");
 
-        // attack input (both LMB and RMB)
+        // Attack input
         if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
         {
             PlayerAttack pa = GetComponent<PlayerAttack>();
-            // only attack if player has whip
             if (pa != null && pa.hasWhip)
             {
                 if (anim) anim.SetTrigger("Stab");
@@ -47,7 +56,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // movement input (blocked while stabbing)
+        // Movement input
         float x = isStabbing ? 0f : Input.GetAxisRaw("Horizontal");
         float z = isStabbing ? 0f : Input.GetAxisRaw("Vertical");
         Vector3 input = new Vector3(x, 0f, z);
@@ -56,26 +65,30 @@ public class PlayerMovement : MonoBehaviour
         bool isWalking = !isStabbing && Input.GetKey(KeyCode.LeftShift);
         float targetSpeed = isWalking ? walkSpeed : runSpeed;
 
-        // world move dir
+        // Move direction
         Vector3 moveWorld = transform.TransformDirection(input.normalized) * (move01 > 0f ? targetSpeed : 0f);
 
         if (move01 > 0f) turning = false;
 
-        // jump (not during stab)
+        // JUMP
         if (!isStabbing && Input.GetButtonDown("Jump") && grounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+
             if (anim) anim.SetTrigger("Jump");
+
+            if (footstepAudio)                            
+                footstepAudio.PlayJumpSound();       
         }
 
-        // gravity
+        // Gravity
         velocity.y += gravity * Time.deltaTime;
 
-        // final move
+        // Final move
         Vector3 motion = new Vector3(moveWorld.x, velocity.y, moveWorld.z) * Time.deltaTime;
         controller.Move(motion);
 
-        // rotate model to move dir
+        // Rotate model
         if (!isStabbing && modelRoot && move01 > 0f)
         {
             Vector3 flat = new Vector3(moveWorld.x, 0f, moveWorld.z);
@@ -86,7 +99,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // idle turns
+        // Idle Turns (A/D)
         if (!isStabbing && modelRoot && move01 <= 0.001f)
         {
             if (Input.GetKeyDown(KeyCode.A))
@@ -103,14 +116,14 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // smooth turn
+        // Smooth turn
         if (!isStabbing && turning && modelRoot)
         {
             modelRoot.rotation = Quaternion.Slerp(modelRoot.rotation, targetTurnRot, Time.deltaTime * turnSpeed);
             if (Quaternion.Angle(modelRoot.rotation, targetTurnRot) < 1f) turning = false;
         }
 
-        // animator params
+        // Animator parameters
         if (anim)
         {
             anim.SetFloat("Speed", move01);
