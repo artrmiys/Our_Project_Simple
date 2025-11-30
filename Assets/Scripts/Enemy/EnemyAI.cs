@@ -47,7 +47,7 @@ public class EnemyAI : MonoBehaviour
         if (!animator) animator = GetComponentInChildren<Animator>();
 
         agent.updatePosition = true;
-        agent.updateRotation = false; // we rotate manually
+        agent.updateRotation = false;
         agent.angularSpeed = 720f;
         agent.autoBraking = false;
 
@@ -60,14 +60,12 @@ public class EnemyAI : MonoBehaviour
 
     void Start()
     {
-        // Auto detect player
         if (!player)
         {
             GameObject p = GameObject.FindGameObjectWithTag("Player");
             if (p) player = p.transform;
         }
 
-        // Snap to NavMesh if needed
         if (!agent.isOnNavMesh)
         {
             if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 2f, NavMesh.AllAreas))
@@ -81,56 +79,66 @@ public class EnemyAI : MonoBehaviour
     {
         if (isDead || !player) return;
 
-        // Stop logic during attack animation
-        if (isAttacking)
-        {
-            UpdateAnimation();
-            return;
-        }
-
         float dist = Vector3.Distance(transform.position, player.position);
         bool seesPlayer = CanSeePlayer();
 
-        // --- ATTACK ---
-        if (dist <= attackDistance && Time.time - lastAttackTime > attackCooldown)
+        // ATTACK ANIMATION PHASE
+        if (isAttacking)
         {
-            StartAttack();
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+            UpdateAnimation();
+            RotateTowardsMovement();
             return;
         }
 
-        // --- CHASE ---
-        if (seesPlayer && dist <= visionRange)
+        // MELEE RANGE LOGIC
+        if (dist <= attackDistance)
         {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+
             if (!inCombat)
                 EnterCombat();
 
-            lostPlayerTimer = 0f;
-            ChasePlayer();
-        }
-        else if (inCombat)
-        {
-            ChasePlayer();
-            lostPlayerTimer += Time.deltaTime;
-
-            if (lostPlayerTimer > loseSightTime && dist > attackDistance + 0.5f)
-            {
-                ExitCombat();
-                StartPatrol();
-            }
+            if (Time.time - lastAttackTime > attackCooldown)
+                StartAttack();
         }
         else
         {
-            Patrol();
+            // NORMAL MOVEMENT
+            agent.isStopped = false;
+
+            if (seesPlayer && dist <= visionRange)
+            {
+                if (!inCombat)
+                    EnterCombat();
+
+                lostPlayerTimer = 0f;
+                ChasePlayer();
+            }
+            else if (inCombat)
+            {
+                ChasePlayer();
+                lostPlayerTimer += Time.deltaTime;
+
+                if (lostPlayerTimer > loseSightTime && dist > attackDistance + 0.5f)
+                {
+                    ExitCombat();
+                    StartPatrol();
+                }
+            }
+            else
+            {
+                Patrol();
+            }
         }
 
         UpdateAnimation();
         RotateTowardsMovement();
     }
 
-    // ---------------------------------
-    // ROTATION FIX (NO MORE SLIDING)
-    // ---------------------------------
-
+    // ROTATION
     void RotateTowardsMovement()
     {
         if (agent.velocity.sqrMagnitude > 0.1f)
@@ -143,39 +151,42 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // ---------------------------------
-    // VISION SYSTEM
-    // ---------------------------------
-
+    // VISION
     bool CanSeePlayer()
     {
         if (!player) return false;
 
+        // Eye positions (enemy and player)
         Vector3 eyePos = transform.position + Vector3.up * 1.6f;
         Vector3 targetPos = player.position + Vector3.up * 1.2f;
 
         Vector3 dir = targetPos - eyePos;
         float dist = dir.magnitude;
 
+        // Distance check
         if (dist > visionRange)
             return false;
 
         dir.Normalize();
 
+        // Vision cone check
         float angle = Vector3.Angle(transform.forward, dir);
         if (angle > visionAngle * 0.5f)
             return false;
 
-        if (Physics.Raycast(eyePos, dir, out RaycastHit hit, visionRange))
+        // Raycast that ignores the "Enemies" layer
+        int layerMask = ~LayerMask.GetMask("Enemies");
+
+        if (Physics.Raycast(eyePos, dir, out RaycastHit hit, visionRange, layerMask))
+        {
+            // Must hit the player
             return hit.collider.CompareTag("Player");
+        }
 
         return false;
     }
 
-    // ---------------------------------
     // PATROL
-    // ---------------------------------
-
     void Patrol()
     {
         agent.speed = patrolSpeed;
@@ -199,10 +210,7 @@ public class EnemyAI : MonoBehaviour
         Patrol();
     }
 
-    // ---------------------------------
     // CHASE
-    // ---------------------------------
-
     void ChasePlayer()
     {
         if (!player) return;
@@ -220,10 +228,7 @@ public class EnemyAI : MonoBehaviour
         agent.SetDestination(player.position);
     }
 
-    // ---------------------------------
-    // COMBAT STATE
-    // ---------------------------------
-
+    // COMBAT STATES
     void EnterCombat()
     {
         inCombat = true;
@@ -242,10 +247,7 @@ public class EnemyAI : MonoBehaviour
         animator.SetBool("isChasing", false);
     }
 
-    // ---------------------------------
     // ATTACK
-    // ---------------------------------
-
     void StartAttack()
     {
         if (isAttacking) return;
@@ -267,11 +269,19 @@ public class EnemyAI : MonoBehaviour
         if (!player) return;
 
         Health ph = player.GetComponent<Health>();
-        if (ph)
-            ph.TakeDamage(attackDamage);
+        if (!ph) ph = player.GetComponentInChildren<Health>();
+        if (!ph) ph = player.GetComponentInParent<Health>();
 
-        if (CameraShake.Instance != null)
-            CameraShake.Instance.Shake();
+        if (ph)
+        {
+            ph.TakeDamage(attackDamage);
+            if (CameraShake.Instance != null)
+                CameraShake.Instance.Shake();
+        }
+        else
+        {
+            Debug.LogWarning("Enemy tried to damage player but could NOT find Health!");
+        }
     }
 
     void FinishAttack()
@@ -289,10 +299,7 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    // ---------------------------------
     // ANIMATION
-    // ---------------------------------
-
     void UpdateAnimation()
     {
         if (!animator) return;
@@ -307,18 +314,16 @@ public class EnemyAI : MonoBehaviour
         if (isAttacking) return;
 
         float speed = agent.velocity.magnitude;
-        if (speed < 0.15f) speed = 0f;
 
-        animator.SetFloat("Speed", speed);
+        bool shouldMove =
+            speed > 0.05f ||
+            (agent.hasPath && agent.remainingDistance > agent.stoppingDistance + 0.1f);
 
-        bool isMoving = speed > 0.15f;
-        animator.SetBool("isChasing", inCombat && isMoving);
+        animator.SetFloat("Speed", shouldMove ? 1f : 0f);
+        animator.SetBool("isChasing", inCombat && shouldMove);
     }
 
-    // ---------------------------------
     // DEATH
-    // ---------------------------------
-
     void OnDeath()
     {
         if (isDead) return;

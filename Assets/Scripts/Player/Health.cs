@@ -32,16 +32,25 @@ public class Health : MonoBehaviour
     public string playerTag = "Player";
 
     [Tooltip("Root object of the player (for disabling scripts)")]
-    public Transform playerRoot;                // usually player GameObject
+    public Transform playerRoot;
 
     [Tooltip("Optional player rigidbody")]
-    public Rigidbody playerRigidbody;           // optional
+    public Rigidbody playerRigidbody;
 
-    [Tooltip("Extra scripts to disable on death (movement, look, rope, etc.)")]
-    public MonoBehaviour[] scriptsToDisableOnDeath;   // drag RopeFromHabrador, movement, etc.
+    [Tooltip("Extra scripts to disable on death")]
+    public MonoBehaviour[] scriptsToDisableOnDeath;
 
     [Tooltip("Disable ALL MonoBehaviours on playerRoot hierarchy (except this Health)")]
     public bool disableAllPlayerScriptsOnDeath = true;
+
+    // ----------------------------------------------
+    // DAMAGE AUDIO
+    // ----------------------------------------------
+    [Header("Damage Audio")]
+    public AudioSource damageAudioSource;   // AudioSource that plays damage sounds
+    public AudioClip damageClip;            // Sound played when taking damage
+    [Range(0f, 1f)] public float damageVolume = 1f; // Volume of damage sound
+
 
     void Awake()
     {
@@ -64,6 +73,9 @@ public class Health : MonoBehaviour
 
         currentHP = Mathf.Max(0f, currentHP - amount);
 
+        // play damage sound
+        PlayDamageSound(); // ← Added
+
         // popup
         if (damagePopupPrefab && popupPoint)
         {
@@ -83,6 +95,19 @@ public class Health : MonoBehaviour
             Die();
     }
 
+    // -------------------------------------------------
+    // METHOD: PLAYS THE DAMAGE SOUND
+    // -------------------------------------------------
+    void PlayDamageSound()
+    {
+        // play damage audio if everything is set
+        if (damageAudioSource != null && damageClip != null)
+        {
+            damageAudioSource.PlayOneShot(damageClip, damageVolume);
+        }
+    }
+
+
     public void Heal(float amount)
     {
         if (currentHP <= 0f || amount <= 0f) return;
@@ -97,22 +122,16 @@ public class Health : MonoBehaviour
 
         if (CompareTag(playerTag))
         {
-            // hard freeze player input / movement / rope
             FreezePlayerOnDeath();
 
-            // show death UI
             if (deathScreenObject != null)
                 deathScreenObject.SetActive(true);
 
-            // temp runner to restart scene after delay
             GameObject go = new GameObject("DeathHandler");
             var handler = go.AddComponent<DeathHandler>();
             handler.delay = deathScreenTime;
 
-            // remove extras
             DestroyExtraObjects();
-
-            // remove player object
             Destroy(gameObject);
         }
         else
@@ -124,13 +143,11 @@ public class Health : MonoBehaviour
 
     void FreezePlayerOnDeath()
     {
-        // stop keyboard / mouse axes (WASD etc.)
         Input.ResetInputAxes();
 
         if (!playerRoot)
             return;
 
-        // rigidbody freeze
         if (!playerRigidbody)
             playerRigidbody = playerRoot.GetComponent<Rigidbody>();
 
@@ -142,7 +159,6 @@ public class Health : MonoBehaviour
             playerRigidbody.constraints = RigidbodyConstraints.FreezeAll;
         }
 
-        // disable explicit scripts (movement, look, rope)
         if (scriptsToDisableOnDeath != null)
         {
             foreach (var mb in scriptsToDisableOnDeath)
@@ -152,14 +168,13 @@ public class Health : MonoBehaviour
             }
         }
 
-        // disable ALL scripts on player hierarchy (except this Health)
         if (disableAllPlayerScriptsOnDeath && playerRoot != null)
         {
             var all = playerRoot.GetComponentsInChildren<MonoBehaviour>(true);
             foreach (var mb in all)
             {
                 if (mb == null || !mb.enabled) continue;
-                if (mb == this) continue; // keep Health alive to finish Die()
+                if (mb == this) continue;
 
                 mb.enabled = false;
             }
@@ -176,7 +191,6 @@ public class Health : MonoBehaviour
         }
     }
 
-    // helper that survives player destroy
     private class DeathHandler : MonoBehaviour
     {
         public float delay = 2f;
