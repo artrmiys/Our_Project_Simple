@@ -2,7 +2,9 @@
 
 public class PlayerMovement : MonoBehaviour
 {
+    private IHighlightable currentHighlighted;
     public CharacterController controller;
+
 
     [Header("Speeds")]
     public float walkSpeed = 3.5f;
@@ -129,5 +131,58 @@ public class PlayerMovement : MonoBehaviour
             anim.SetFloat("Speed", move01);
             anim.SetBool("IsRunning", !isWalking);
         }
+
+        // Input.GetKeyDown
+
+        // Create a ray from the camera’s position forward
+        Ray ray = new Ray(Camera.main.transform.position, Camera.main.transform.forward);
+
+        // Ignore the Player layer so the ray doesn't hit the character model
+        int mask = ~LayerMask.GetMask("Player");
+
+        // Perform the raycast
+        if (Physics.Raycast(ray, out RaycastHit hit, 4f, mask))
+        {
+            Debug.Log("Raycast hit: " + hit.collider.name);
+
+            // Try to get a highlightable component on the hit object or its parent
+            var highlight = hit.collider.GetComponentInParent<IHighlightable>();
+
+            // If we found a new highlightable object (different from the previous one)
+            if (highlight != null && highlight != currentHighlighted)
+            {
+                // Remove highlight from the previously highlighted object
+                if (currentHighlighted != null)
+                    currentHighlighted.Unhighlight();
+
+                // Apply highlight to the new object
+                highlight.Highlight();
+                currentHighlighted = highlight;
+            }
+
+            // If the object under the ray is NOT highlightable, remove highlight
+            if (highlight == null && currentHighlighted != null)
+            {
+                currentHighlighted.Unhighlight();
+                currentHighlighted = null;
+            }
+
+            // Interact if object is interactable and the player presses E
+            var interactable = hit.collider.GetComponentInParent<Interactable>();
+            if (interactable != null && Input.GetKeyDown(KeyCode.E))
+            {
+                interactable.Interact();
+            }
+        }
+        else
+        {
+            // If raycast did not hit anything, remove highlight if needed
+            if (currentHighlighted != null)
+            {
+                currentHighlighted.Unhighlight();
+                currentHighlighted = null;
+            }
+        }
+
     }
 }
