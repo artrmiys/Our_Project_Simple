@@ -23,27 +23,27 @@ public class BossAI : MonoBehaviour
     [Header("Cooldowns")]
     public float attackCooldown = 1.6f;
 
-    [Header("Attack Lock (prevents running during attack)")]
-    public float meleeAttackLock = 0.9f;
-    public float skullAttackLock = 1.1f;
-    float attackLockUntil;
+    [Header("Attack Timing (EnemyAI style)")]
+    public float meleeWindup = 1f;          // момент удара
+    public float skullWindup = 1f;          // момент выстрела
+    public float meleeRecover = 0.55f;         // восстановление после удара
+    public float skullRecover = 0.65f;         // восстановление после выстрела
+    public float attackFailSafeTime = 2.0f;    // если застрял — выйти из атаки
 
-    [Header("After Skull -> force approach (fixes 'attacks instead of chasing')")]
+
+
+    [Header("After Skull -> force approach")]
     public float approachAfterSkullTime = 1.2f;
     float approachUntil;
 
     [Header("Melee Damage")]
     public float meleeDamage = 8f;
-    public float meleeHitDelay = 0.25f;
     public float meleeExtraRange = 0.35f;
-
-    [Header("Skull Shot")]
-    public float skullShotDelay = 0.35f;
 
     [Header("Hit spam guard")]
     public float hitAnimCooldown = 0.25f;
 
-    [Header("Camera Shake (same as EnemyAI)")]
+    [Header("Camera Shake")]
     public bool shakeOnPlayerHit = true;
 
     [Header("Animator Params")]
@@ -51,7 +51,7 @@ public class BossAI : MonoBehaviour
     public string pAttack = "Attack";
     public string pAttackID = "AttackID";
     public string pHit = "Hit";
-    public string pIsDead = "isDead";   // <-- было Dead
+    public string pIsDead = "isDead";
     public string pStunned = "Stunned";
 
     NavMeshAgent agent;
@@ -59,10 +59,19 @@ public class BossAI : MonoBehaviour
 
     float nextAttackTime;
     float nextHitAnimTime;
+
     bool isDead;
     bool isStunned;
 
+    bool isAttacking;
+    float lastAttackStartTime;
+    Coroutine attackRoutine;
+
     int nextMeleeId = 1;
+
+    // to support animation events (avoid double damage/shot)
+    int currentAttackId;
+    bool actionDone;
 
     Health myHealth;
     float lastHp = -1f;
@@ -120,7 +129,12 @@ public class BossAI : MonoBehaviour
             return;
         }
 
-        if (Time.time < attackLockUntil)
+        // failsafe: если застрял в атаке
+        if (isAttacking && (Time.time - lastAttackStartTime) > attackFailSafeTime)
+            FinishAttack();
+
+        // while attacking: stay stopped, face player
+        if (isAttacking)
         {
             StopAgent();
             SetSpeedAnim(0f);
@@ -142,12 +156,13 @@ public class BossAI : MonoBehaviour
             agent.isStopped = false;
             agent.stoppingDistance = 0.1f;
             MoveTo(spawnPos);
-            SetSpeedAnim(agent.velocity.magnitude);
+            SetSpeedAnim(agent.desiredVelocity.magnitude);
             return;
         }
 
         FaceTarget(player.position);
 
+        // force approach window after skull
         if (Time.time < approachUntil)
         {
             ChasePlayer();
@@ -156,17 +171,19 @@ public class BossAI : MonoBehaviour
 
         if (Time.time >= nextAttackTime)
         {
+            // ranged (id=3)
             if (dist <= skullRange && dist > meleeRange + 0.3f)
             {
-                DoAttack(3);
+                StartAttack(3);
                 return;
             }
 
+            // melee (id=1/2)
             if (dist <= meleeRange)
             {
                 int id = nextMeleeId;
                 nextMeleeId = (nextMeleeId == 1) ? 2 : 1;
-                DoAttack(id);
+                StartAttack(id);
                 return;
             }
         }
@@ -179,63 +196,123 @@ public class BossAI : MonoBehaviour
         agent.isStopped = false;
         agent.stoppingDistance = stopDistance;
         MoveTo(player.position);
-        SetSpeedAnim(agent.velocity.magnitude);
+        SetSpeedAnim(agent.desiredVelocity.magnitude);
     }
 
-    void DoAttack(int id)
+    void StartAttack(int id)
     {
+        if (isAttacking || isDead || isStunned) return;
+
+        isAttacking = true;
+        lastAttackStartTime = Time.time;
+
+        currentAttackId = id;
+        actionDone = false;
+
         StopAgent();
         SetSpeedAnim(0f);
-
-        attackLockUntil = Time.time + (id == 3 ? skullAttackLock : meleeAttackLock);
 
         if (animator)
         {
             animator.SetInteger(pAttackID, id);
+            animator.ResetTrigger(pAttack);
             animator.SetTrigger(pAttack);
         }
 
         nextAttackTime = Time.time + attackCooldown;
 
-        if (id == 3 && skullMinion)
+        if (id == 3)
         {
+            // после выстрела — обязательно подойти
             approachUntil = Time.time + approachAfterSkullTime;
-
-            skullMinion.PrepareShot();
-            StartCoroutine(SkullShotFallback());
+            if (skullMinion) skullMinion.PrepareShot();
         }
-        else if (id == 1 || id == 2)
+
+        if (attackRoutine != null) StopCoroutine(attackRoutine);
+        attackRoutine = StartCoroutine(AttackRoutine(id));
+    }
+
+    IEnumerator AttackRoutine(int id)
+    {
+        float windup = (id == 3) ? skullWindup : meleeWindup;
+        float recover = (id == 3) ? skullRecover : meleeRecover;
+
+        // windup
+        yield return new WaitForSeconds(windup);
+
+        if (isDead || isStunned) yield break;
+
+        // действие: либо AnimationEvent, либо fallback по таймеру
+        if (!actionDone)
         {
-            StartCoroutine(MeleeHitFallback());
+            actionDone = true;
+            if (id == 3) DoSkullShot();
+            else DoMeleeHit();
         }
+
+        // recovery
+        yield return new WaitForSeconds(recover);
+
+        FinishAttack();
     }
 
-    IEnumerator SkullShotFallback()
+    void DoMeleeHit()
     {
-        yield return new WaitForSeconds(skullShotDelay);
-        if (isDead || isStunned) yield break;
-        if (skullMinion) skullMinion.ShootAtPlayer();
-    }
-
-    IEnumerator MeleeHitFallback()
-    {
-        yield return new WaitForSeconds(meleeHitDelay);
-        if (isDead || isStunned) yield break;
-        if (!player) yield break;
+        if (!player) return;
 
         float dist = Vector3.Distance(transform.position, player.position);
-        if (dist > meleeRange + meleeExtraRange) yield break;
+        if (dist > meleeRange + meleeExtraRange) return;
 
         Health h = player.GetComponent<Health>();
         if (!h) h = player.GetComponentInChildren<Health>();
         if (!h) h = player.GetComponentInParent<Health>();
-        if (!h) yield break;
+        if (!h) return;
 
         h.TakeDamage(meleeDamage);
 
         if (shakeOnPlayerHit && CameraShake.Instance != null)
             CameraShake.Instance.Shake();
     }
+
+    void DoSkullShot()
+    {
+        if (skullMinion) skullMinion.ShootAtPlayer();
+    }
+
+    void FinishAttack()
+    {
+        isAttacking = false;
+        attackRoutine = null;
+
+        if (isDead || isStunned || !player) return;
+
+        agent.isStopped = false;
+        agent.ResetPath();
+        MoveTo(player.position);
+    }
+
+    // --- OPTIONAL: Animation Events (точная синхронизация) ---
+    public void AnimEvent_MeleeHit()
+    {
+        if (!isAttacking || isDead || isStunned) return;
+        if (currentAttackId == 3) return;
+        if (actionDone) return;
+
+        actionDone = true;
+        DoMeleeHit();
+    }
+
+    public void AnimEvent_SkullShoot()
+    {
+        if (!isAttacking || isDead || isStunned) return;
+        if (currentAttackId != 3) return;
+        if (actionDone) return;
+
+        actionDone = true;
+        DoSkullShot();
+    }
+
+    // --------------------------------------------------------
 
     void MoveTo(Vector3 pos)
     {
@@ -267,15 +344,19 @@ public class BossAI : MonoBehaviour
         animator.SetFloat(pSpeed, v);
     }
 
-    public void AnimEvent_SkullShoot()
-    {
-        if (skullMinion) skullMinion.ShootAtPlayer();
-    }
-
     public void SetDead(bool dead)
     {
         isDead = dead;
-        attackLockUntil = Mathf.Infinity;
+
+        if (attackRoutine != null)
+        {
+            StopCoroutine(attackRoutine);
+            attackRoutine = null;
+        }
+
+        isAttacking = false;
+        actionDone = true;
+
         approachUntil = Mathf.Infinity;
 
         StopAgent();
@@ -283,13 +364,11 @@ public class BossAI : MonoBehaviour
 
         if (animator)
         {
-            // чтобы смерть не перебивалась триггерами
             animator.ResetTrigger(pAttack);
             animator.ResetTrigger(pHit);
             animator.SetInteger(pAttackID, 0);
             animator.SetBool(pStunned, false);
-
-            animator.SetBool(pIsDead, dead);   // <-- isDead
+            animator.SetBool(pIsDead, dead);
         }
     }
 
@@ -313,7 +392,8 @@ public class BossAI : MonoBehaviour
         if (!animator) return;
         if (isDead) return;
 
-        if (Time.time < attackLockUntil) return;
+        // не перебивать атаку хитом
+        if (isAttacking) return;
 
         if (Time.time < nextHitAnimTime) return;
         nextHitAnimTime = Time.time + hitAnimCooldown;
@@ -324,7 +404,6 @@ public class BossAI : MonoBehaviour
     public void OnDeath()
     {
         SetDead(true);
-        StopAgent();
         enabled = false;
 
         if (skullMinion)

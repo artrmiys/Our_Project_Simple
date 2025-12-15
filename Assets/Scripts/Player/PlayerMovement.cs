@@ -5,7 +5,6 @@ public class PlayerMovement : MonoBehaviour
     private IHighlightable currentHighlighted;
     public CharacterController controller;
 
-
     [Header("Speeds")]
     public float walkSpeed = 3.5f;
     public float runSpeed = 7f;
@@ -24,8 +23,14 @@ public class PlayerMovement : MonoBehaviour
     public Transform modelRoot;
     public float turnSpeed = 10f;
 
+    [Header("Attack Facing")]
+    public bool faceAimWhileAttacking = true;     // rotate model during attack
+    public bool lockAimOnAttackStart = true;      // lock direction on click
+    Vector3 lockedAimDir;
+    bool hasLockedAim;
+
     [Header("Audio")]
-    public FootstepAudio footstepAudio;   // <-- Added
+    public FootstepAudio footstepAudio;
 
     Vector3 velocity;
     bool turning;
@@ -33,9 +38,8 @@ public class PlayerMovement : MonoBehaviour
 
     void Start()
     {
-        // Auto-grab FootstepAudio if missing
         if (!footstepAudio)
-            footstepAudio = GetComponent<FootstepAudio>();   
+            footstepAudio = GetComponent<FootstepAudio>();
     }
 
     void Update()
@@ -53,6 +57,13 @@ public class PlayerMovement : MonoBehaviour
             PlayerAttack pa = GetComponent<PlayerAttack>();
             if (pa != null && pa.hasWhip)
             {
+                // lock aim dir at attack start (optional)
+                if (faceAimWhileAttacking && lockAimOnAttackStart)
+                {
+                    lockedAimDir = GetAimDirXZ();
+                    hasLockedAim = true;
+                }
+
                 if (anim) anim.SetTrigger("Stab");
                 turning = false;
             }
@@ -79,8 +90,8 @@ public class PlayerMovement : MonoBehaviour
 
             if (anim) anim.SetTrigger("Jump");
 
-            if (footstepAudio)                            
-                footstepAudio.PlayJumpSound();       
+            if (footstepAudio)
+                footstepAudio.PlayJumpSound();
         }
 
         // Gravity
@@ -90,7 +101,7 @@ public class PlayerMovement : MonoBehaviour
         Vector3 motion = new Vector3(moveWorld.x, velocity.y, moveWorld.z) * Time.deltaTime;
         controller.Move(motion);
 
-        // Rotate model
+        // Rotate model (movement-based)
         if (!isStabbing && modelRoot && move01 > 0f)
         {
             Vector3 flat = new Vector3(moveWorld.x, 0f, moveWorld.z);
@@ -100,6 +111,22 @@ public class PlayerMovement : MonoBehaviour
                 modelRoot.rotation = Quaternion.Slerp(modelRoot.rotation, look, Time.deltaTime * turnSpeed);
             }
         }
+
+        // Rotate model while attacking (aim/whip direction)
+        if (isStabbing && faceAimWhileAttacking && modelRoot)
+        {
+            Vector3 dir = (lockAimOnAttackStart && hasLockedAim) ? lockedAimDir : GetAimDirXZ();
+            if (dir.sqrMagnitude > 0.0001f)
+            {
+                Quaternion look = Quaternion.LookRotation(dir, Vector3.up);
+                modelRoot.rotation = Quaternion.Slerp(modelRoot.rotation, look, Time.deltaTime * turnSpeed);
+            }
+
+            turning = false; // prevent conflict with idle turn system
+        }
+
+        // reset lock when not attacking
+        if (!isStabbing) hasLockedAim = false;
 
         // Idle Turns (A/D)
         if (!isStabbing && modelRoot && move01 <= 0.001f)
@@ -132,42 +159,30 @@ public class PlayerMovement : MonoBehaviour
             anim.SetBool("IsRunning", !isWalking);
         }
 
-        // Input.GetKeyDown
-
-        // Create a ray from the camera’s position forward
+        // Ray from camera forward (interaction)
         Ray ray = new Ray(Camera.main.transform.position, Camera.main.transform.forward);
 
-        // Ignore the Player layer so the ray doesn't hit the character model
         int mask = ~LayerMask.GetMask("Player");
 
-        // Perform the raycast
         if (Physics.Raycast(ray, out RaycastHit hit, 4f, mask))
         {
-            //Debug.Log("Raycast hit: " + hit.collider.name);
-
-            // Try to get a highlightable component on the hit object or its parent
             var highlight = hit.collider.GetComponentInParent<IHighlightable>();
 
-            // If we found a new highlightable object (different from the previous one)
             if (highlight != null && highlight != currentHighlighted)
             {
-                // Remove highlight from the previously highlighted object
                 if (currentHighlighted != null)
                     currentHighlighted.Unhighlight();
 
-                // Apply highlight to the new object
                 highlight.Highlight();
                 currentHighlighted = highlight;
             }
 
-            // If the object under the ray is NOT highlightable, remove highlight
             if (highlight == null && currentHighlighted != null)
             {
                 currentHighlighted.Unhighlight();
                 currentHighlighted = null;
             }
 
-            // Interact if object is interactable and the player presses E
             var interactable = hit.collider.GetComponentInParent<Interactable>();
             if (interactable != null && Input.GetKeyDown(KeyCode.E))
             {
@@ -176,13 +191,28 @@ public class PlayerMovement : MonoBehaviour
         }
         else
         {
-            // If raycast did not hit anything, remove highlight if needed
             if (currentHighlighted != null)
             {
                 currentHighlighted.Unhighlight();
                 currentHighlighted = null;
             }
         }
+    }
 
+    // Aim direction = center of screen (same as WhipSimple)
+    Vector3 GetAimDirXZ()
+    {
+        Camera cam = Camera.main;
+        if (!cam)
+            return modelRoot ? modelRoot.forward : transform.forward;
+
+        Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        Vector3 dir = ray.direction;
+        dir.y = 0f;
+
+        if (dir.sqrMagnitude < 0.0001f)
+            dir = modelRoot ? modelRoot.forward : transform.forward;
+
+        return dir.normalized;
     }
 }
