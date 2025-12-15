@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
+using UnityEngine.AI;
 
 public class Health : MonoBehaviour
 {
@@ -15,12 +16,10 @@ public class Health : MonoBehaviour
     private readonly Color enemyHitColor = new Color(0.0745f, 1f, 0.0627f, 1f);
 
     [Header("Player death")]
-    [Tooltip("UI object to show on player death")]
     public GameObject deathScreenObject;
     public float deathScreenTime = 2f;
 
     [Header("Destroy on death")]
-    [Tooltip("Extra objects to remove with this one")]
     public GameObject[] extraObjectsToDestroy;
 
     [Header("Events")]
@@ -28,42 +27,37 @@ public class Health : MonoBehaviour
     public UnityEvent onDied;
 
     [Header("Player freeze on death")]
-    [Tooltip("Tag used to detect player object")]
     public string playerTag = "Player";
-
-    [Tooltip("Root object of the player (for disabling scripts)")]
     public Transform playerRoot;
-
-    [Tooltip("Optional player rigidbody")]
     public Rigidbody playerRigidbody;
-
-    [Tooltip("Extra scripts to disable on death")]
     public MonoBehaviour[] scriptsToDisableOnDeath;
-
-    [Tooltip("Disable ALL MonoBehaviours on playerRoot hierarchy (except this Health)")]
     public bool disableAllPlayerScriptsOnDeath = true;
 
-    // ----------------------------------------------
-    // DAMAGE AUDIO
-    // ----------------------------------------------
     [Header("Damage Audio")]
-    public AudioSource damageAudioSource;   // AudioSource that plays damage sounds
-    public AudioClip damageClip;            // Sound played when taking damage
-    [Range(0f, 1f)] public float damageVolume = 1f; // Volume of damage sound
+    public AudioSource damageAudioSource;
+    public AudioClip damageClip;
+    [Range(0f, 1f)] public float damageVolume = 1f;
 
+    [Header("Enemy death (animation + delay destroy)")]
+    public float enemyDeathDelay = 2.9f;
+    public bool enemyUseUnscaledTime = false;
+    public bool enemyDisableCollidersOnDeath = true;
+    public bool enemyDisableNavMeshOnDeath = true;
+    public bool enemyDisableEnemyAIOnDeath = true;
+
+    [Header("Enemy corpse")]
+    public float corpseStayTime = 4f;
+    public bool freezePoseAfterDeath = true;
+    public bool freezeByDisablingAnimator = true;
 
     void Awake()
     {
         currentHP = maxHP;
 
-        // auto-setup for player
         if (CompareTag(playerTag))
         {
-            if (!playerRoot)
-                playerRoot = transform;
-
-            if (!playerRigidbody && playerRoot)
-                playerRigidbody = playerRoot.GetComponent<Rigidbody>();
+            if (!playerRoot) playerRoot = transform;
+            if (!playerRigidbody && playerRoot) playerRigidbody = playerRoot.GetComponent<Rigidbody>();
         }
     }
 
@@ -72,11 +66,8 @@ public class Health : MonoBehaviour
         if (currentHP <= 0f || amount <= 0f) return;
 
         currentHP = Mathf.Max(0f, currentHP - amount);
+        PlayDamageSound();
 
-        // play damage sound
-        PlayDamageSound(); // ← Added
-
-        // popup
         if (damagePopupPrefab && popupPoint)
         {
             Vector3 pos = popupPoint.position + Vector3.up * 0.2f;
@@ -84,7 +75,7 @@ public class Health : MonoBehaviour
             DamagePopup dp = popup.GetComponent<DamagePopup>();
             if (dp != null)
             {
-                Color popupColor = CompareTag("Player") ? playerHitColor : enemyHitColor;
+                Color popupColor = CompareTag(playerTag) ? playerHitColor : enemyHitColor;
                 dp.Setup(amount, popupColor);
             }
         }
@@ -95,18 +86,11 @@ public class Health : MonoBehaviour
             Die();
     }
 
-    // -------------------------------------------------
-    // METHOD: PLAYS THE DAMAGE SOUND
-    // -------------------------------------------------
     void PlayDamageSound()
     {
-        // play damage audio if everything is set
         if (damageAudioSource != null && damageClip != null)
-        {
             damageAudioSource.PlayOneShot(damageClip, damageVolume);
-        }
     }
-
 
     public void Heal(float amount)
     {
@@ -118,7 +102,6 @@ public class Health : MonoBehaviour
     void Die()
     {
         onDied?.Invoke();
-        Debug.Log($"{gameObject.name} died");
 
         if (CompareTag(playerTag))
         {
@@ -136,17 +119,126 @@ public class Health : MonoBehaviour
         }
         else
         {
-            DestroyExtraObjects();
-            Destroy(gameObject);
+            StartCoroutine(EnemyDeathRoutine());
         }
+    }
+
+    IEnumerator EnemyDeathRoutine()
+    {
+        // --- stop BossAI if exists ---
+        var boss = GetComponent<BossAI>();
+        if (boss != null)
+        {
+            boss.OnDeath();
+            boss.enabled = false;
+        }
+
+        // --- stop EnemyAI if exists ---
+        if (enemyDisableEnemyAIOnDeath)
+        {
+            var ai = GetComponent<EnemyAI>();
+            if (ai != null) ai.enabled = false;
+        }
+
+        // --- stop NavMeshAgent ---
+        if (enemyDisableNavMeshOnDeath)
+        {
+            var agent = GetComponent<NavMeshAgent>();
+            if (agent != null)
+            {
+                agent.isStopped = true;
+                agent.ResetPath();
+                agent.enabled = false;
+            }
+        }
+
+        // --- disable colliders ---
+        if (enemyDisableCollidersOnDeath)
+        {
+            foreach (var col in GetComponentsInChildren<Collider>(true))
+                col.enabled = false;
+        }
+
+        Animator anim = GetComponentInChildren<Animator>();
+        float wait = enemyDeathDelay;
+
+        if (anim != null)
+        {
+            // clear motion
+            if (HasParam(anim, "Attack", AnimatorControllerParameterType.Trigger))
+                anim.ResetTrigger("Attack");
+
+            if (HasParam(anim, "Speed", AnimatorControllerParameterType.Float))
+                anim.SetFloat("Speed", 0f);
+
+            if (HasParam(anim, "isChasing", AnimatorControllerParameterType.Bool))
+                anim.SetBool("isChasing", false);
+
+            // IMPORTANT: set BOTH (your Boss uses Dead, others may use isDead)
+            if (HasParam(anim, "isDead", AnimatorControllerParameterType.Bool))
+                anim.SetBool("isDead", true);
+
+            if (HasParam(anim, "Dead", AnimatorControllerParameterType.Bool))
+                anim.SetBool("Dead", true);
+
+            // force animator evaluate transitions immediately
+            anim.Update(0f);
+            yield return null; // let it enter Death state
+
+            // try to auto-get current death clip length
+            float clipLen = GetCurrentClipLength(anim, 0);
+            if (clipLen > 0.05f)
+                wait = clipLen;
+        }
+
+        if (enemyUseUnscaledTime)
+            yield return new WaitForSecondsRealtime(wait);
+        else
+            yield return new WaitForSeconds(wait);
+
+        if (freezePoseAfterDeath && anim != null)
+        {
+            if (freezeByDisablingAnimator) anim.enabled = false;
+            else anim.speed = 0f;
+        }
+
+        if (corpseStayTime > 0f)
+        {
+            if (enemyUseUnscaledTime)
+                yield return new WaitForSecondsRealtime(corpseStayTime);
+            else
+                yield return new WaitForSeconds(corpseStayTime);
+        }
+
+        DestroyExtraObjects();
+        Destroy(gameObject);
+    }
+
+    static bool HasParam(Animator anim, string name, AnimatorControllerParameterType type)
+    {
+        if (!anim) return false;
+        foreach (var p in anim.parameters)
+            if (p.name == name && p.type == type) return true;
+        return false;
+    }
+
+    static float GetCurrentClipLength(Animator anim, int layer)
+    {
+        if (!anim) return -1f;
+        var infos = anim.GetCurrentAnimatorClipInfo(layer);
+        float max = -1f;
+        for (int i = 0; i < infos.Length; i++)
+        {
+            var c = infos[i].clip;
+            if (c != null) max = Mathf.Max(max, c.length);
+        }
+        return max;
     }
 
     void FreezePlayerOnDeath()
     {
         Input.ResetInputAxes();
-
-        if (!playerRoot)
-            return;
+        if (!playerRoot) return;
 
         if (!playerRigidbody)
             playerRigidbody = playerRoot.GetComponent<Rigidbody>();
@@ -162,10 +254,7 @@ public class Health : MonoBehaviour
         if (scriptsToDisableOnDeath != null)
         {
             foreach (var mb in scriptsToDisableOnDeath)
-            {
-                if (mb != null)
-                    mb.enabled = false;
-            }
+                if (mb != null) mb.enabled = false;
         }
 
         if (disableAllPlayerScriptsOnDeath && playerRoot != null)
@@ -175,7 +264,6 @@ public class Health : MonoBehaviour
             {
                 if (mb == null || !mb.enabled) continue;
                 if (mb == this) continue;
-
                 mb.enabled = false;
             }
         }
@@ -185,22 +273,16 @@ public class Health : MonoBehaviour
     {
         if (extraObjectsToDestroy == null) return;
         foreach (var obj in extraObjectsToDestroy)
-        {
-            if (obj != null)
-                Destroy(obj);
-        }
+            if (obj != null) Destroy(obj);
     }
 
     private class DeathHandler : MonoBehaviour
     {
         public float delay = 2f;
 
-        void Start()
-        {
-            StartCoroutine(RestartRoutine());
-        }
+        void Start() => StartCoroutine(RestartRoutine());
 
-        System.Collections.IEnumerator RestartRoutine()
+        IEnumerator RestartRoutine()
         {
             yield return new WaitForSeconds(delay);
             var scene = SceneManager.GetActiveScene();

@@ -54,11 +54,11 @@ public class DamagePopup : MonoBehaviour
             Color emissive = color * emissionIntensity;
             m.SetColor("_EmissionColor", emissive);
 
-            Debug.Log($"[DamagePopup] emission set on {glowRenderer.name} to {emissive}");
+            //Debug.Log($"[DamagePopup] emission set on {glowRenderer.name} to {emissive}");
         }
         else
         {
-            Debug.Log("[DamagePopup] glowRenderer НЕ назначен в инспекторе, светиться нечему");
+            //Debug.Log("[DamagePopup] glowRenderer НЕ назначен в инспекторе, светиться нечему");
         }
     }
 

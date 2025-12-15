@@ -143,7 +143,7 @@ public class PlayerMovement : MonoBehaviour
         // Perform the raycast
         if (Physics.Raycast(ray, out RaycastHit hit, 4f, mask))
         {
-            Debug.Log("Raycast hit: " + hit.collider.name);
+            //Debug.Log("Raycast hit: " + hit.collider.name);
 
             // Try to get a highlightable component on the hit object or its parent
             var highlight = hit.collider.GetComponentInParent<IHighlightable>();

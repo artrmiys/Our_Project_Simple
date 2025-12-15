@@ -199,7 +199,7 @@ public class FlyCamera : MonoBehaviour
         // unfreeze player
         UnfreezePlayer();
 
-        Debug.Log("Cutscene ended / skipped");
+        //Debug.Log("Cutscene ended / skipped");
     }
 
 

@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections;
+using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
@@ -24,12 +25,18 @@ public class EnemyAI : MonoBehaviour
     public float attackCooldown = 1.8f;
     public float attackDamage = 1f;
 
+    [Header("Attack Timing")]
+    public float attackWindup = 0.35f;     // when damage happens
+    public float attackRecover = 0.55f;    // recovery after hit
+    public float attackFailSafeTime = 2.0f; // if stuck in attack -> force exit
+
     [Header("Chase Behavior")]
     public float loseSightTime = 5f;
 
     // Internal
     private NavMeshAgent agent;
     private Health health;
+
     private int patrolIndex = 0;
     private bool isDead;
     private bool inCombat;
@@ -39,6 +46,13 @@ public class EnemyAI : MonoBehaviour
 
     private float baseAcceleration;
     private float combatAcceleration;
+
+    private Coroutine attackRoutine;
+    [Header("Camera Shake (on hit player)")]
+    public bool shakeOnPlayerHit = true;
+    public float shakeDuration = 0.12f;
+    public float shakeStrength = 0.15f;
+
 
     void Awake()
     {
@@ -82,43 +96,47 @@ public class EnemyAI : MonoBehaviour
         float dist = Vector3.Distance(transform.position, player.position);
         bool seesPlayer = CanSeePlayer();
 
-        // ATTACK ANIMATION PHASE
+        // failsafe: if attack got stuck, force exit
+        if (isAttacking && (Time.time - lastAttackTime) > attackFailSafeTime)
+            FinishAttack();
+
+        // while attacking: stay stopped, face player
         if (isAttacking)
         {
             agent.isStopped = true;
             agent.velocity = Vector3.zero;
+            RotateTowardsTarget(player.position);
             UpdateAnimation();
-            RotateTowardsMovement();
             return;
         }
 
-        // MELEE RANGE LOGIC
+        // melee range
         if (dist <= attackDistance)
         {
             agent.isStopped = true;
             agent.velocity = Vector3.zero;
 
-            if (!inCombat)
-                EnterCombat();
+            if (!inCombat) EnterCombat();
 
-            if (Time.time - lastAttackTime > attackCooldown)
+            // attack if cooldown ready
+            if (Time.time - lastAttackTime >= attackCooldown)
                 StartAttack();
+
+            RotateTowardsTarget(player.position);
         }
         else
         {
-            // NORMAL MOVEMENT
             agent.isStopped = false;
 
             if (seesPlayer && dist <= visionRange)
             {
-                if (!inCombat)
-                    EnterCombat();
-
+                if (!inCombat) EnterCombat();
                 lostPlayerTimer = 0f;
                 ChasePlayer();
             }
             else if (inCombat)
             {
+                // keep chasing for a while even if lost
                 ChasePlayer();
                 lostPlayerTimer += Time.deltaTime;
 
@@ -138,17 +156,27 @@ public class EnemyAI : MonoBehaviour
         RotateTowardsMovement();
     }
 
-    // ROTATION
+    // ROTATION (movement-based)
     void RotateTowardsMovement()
     {
-        if (agent.velocity.sqrMagnitude > 0.1f)
+        Vector3 v = agent.desiredVelocity; // faster response than agent.velocity
+        if (v.sqrMagnitude > 0.05f)
         {
-            Vector3 dir = agent.velocity.normalized;
-            dir.y = 0;
-
-            Quaternion targetRot = Quaternion.LookRotation(dir);
+            v.y = 0f;
+            Quaternion targetRot = Quaternion.LookRotation(v.normalized);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 10f);
         }
+    }
+
+    // ROTATION (target-based)
+    void RotateTowardsTarget(Vector3 targetPos)
+    {
+        Vector3 dir = targetPos - transform.position;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.001f) return;
+
+        Quaternion targetRot = Quaternion.LookRotation(dir.normalized);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 12f);
     }
 
     // VISION
@@ -156,32 +184,23 @@ public class EnemyAI : MonoBehaviour
     {
         if (!player) return false;
 
-        // Eye positions (enemy and player)
         Vector3 eyePos = transform.position + Vector3.up * 1.6f;
         Vector3 targetPos = player.position + Vector3.up * 1.2f;
 
         Vector3 dir = targetPos - eyePos;
         float dist = dir.magnitude;
 
-        // Distance check
-        if (dist > visionRange)
-            return false;
+        if (dist > visionRange) return false;
 
         dir.Normalize();
 
-        // Vision cone check
         float angle = Vector3.Angle(transform.forward, dir);
-        if (angle > visionAngle * 0.5f)
-            return false;
+        if (angle > visionAngle * 0.5f) return false;
 
-        // Raycast that ignores the "Enemies" layer
         int layerMask = ~LayerMask.GetMask("Enemies");
 
         if (Physics.Raycast(eyePos, dir, out RaycastHit hit, visionRange, layerMask))
-        {
-            // Must hit the player
             return hit.collider.CompareTag("Player");
-        }
 
         return false;
     }
@@ -190,21 +209,37 @@ public class EnemyAI : MonoBehaviour
     void Patrol()
     {
         agent.speed = patrolSpeed;
-        agent.stoppingDistance = 0.1f;
+        agent.stoppingDistance = 0.15f;
 
         if (patrolPoints == null || patrolPoints.Length == 0) return;
+        if (!agent.isOnNavMesh) return;
+        if (agent.pathPending) return;
 
-        if (!agent.hasPath || agent.remainingDistance < 0.2f)
+        // reached: используем stoppingDistance (а не 0.2) — это ключ
+        bool reached = !agent.hasPath || agent.remainingDistance <= agent.stoppingDistance + 0.05f;
+
+        // если путь сломан/недостижим — тоже переключаем точку
+        if (reached || agent.pathStatus == NavMeshPathStatus.PathInvalid)
         {
             patrolIndex = (patrolIndex + 1) % patrolPoints.Length;
-            agent.SetDestination(patrolPoints[patrolIndex].position);
+
+            Vector3 target = patrolPoints[patrolIndex].position;
+
+            // прижимаем цель к ближайшей точке NavMesh
+            if (NavMesh.SamplePosition(target, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+                target = hit.position;
+
+            agent.SetDestination(target);
         }
     }
+
 
     void StartPatrol()
     {
         isAttacking = false;
         inCombat = false;
+        lostPlayerTimer = 0f;
+
         agent.acceleration = baseAcceleration;
         agent.isStopped = false;
         Patrol();
@@ -221,9 +256,9 @@ public class EnemyAI : MonoBehaviour
                 agent.Warp(hit.position);
         }
 
-        agent.isStopped = false;
         agent.speed = chaseSpeed;
         agent.acceleration = combatAcceleration;
+        agent.stoppingDistance = attackDistance;
 
         agent.SetDestination(player.position);
     }
@@ -234,8 +269,6 @@ public class EnemyAI : MonoBehaviour
         inCombat = true;
         agent.stoppingDistance = attackDistance;
         agent.acceleration = combatAcceleration;
-
-        animator.SetBool("isChasing", true);
     }
 
     void ExitCombat()
@@ -243,14 +276,12 @@ public class EnemyAI : MonoBehaviour
         inCombat = false;
         agent.stoppingDistance = 0.1f;
         agent.acceleration = baseAcceleration;
-
-        animator.SetBool("isChasing", false);
     }
 
-    // ATTACK
+    // ATTACK (Coroutine вместо Invoke)
     void StartAttack()
     {
-        if (isAttacking) return;
+        if (isAttacking || isDead) return;
 
         lastAttackTime = Time.time;
         isAttacking = true;
@@ -258,15 +289,37 @@ public class EnemyAI : MonoBehaviour
         agent.isStopped = true;
         agent.velocity = Vector3.zero;
 
-        animator.SetTrigger("Attack");
+        if (animator)
+        {
+            animator.ResetTrigger("Attack");
+            animator.SetTrigger("Attack");
+        }
 
-        Invoke(nameof(ApplyAttackDamage), 0.35f);
-        Invoke(nameof(FinishAttack), 0.9f);
+        if (attackRoutine != null) StopCoroutine(attackRoutine);
+        attackRoutine = StartCoroutine(AttackRoutine());
+    }
+
+    IEnumerator AttackRoutine()
+    {
+        // windup
+        yield return new WaitForSeconds(attackWindup);
+
+        if (!isDead && player)
+        {
+            float dist = Vector3.Distance(transform.position, player.position);
+            if (dist <= attackDistance + 0.3f)
+                ApplyAttackDamage();
+        }
+
+        // recovery
+        yield return new WaitForSeconds(attackRecover);
+
+        FinishAttack();
     }
 
     void ApplyAttackDamage()
     {
-        if (!player) return;
+        if (isDead || !player) return;
 
         Health ph = player.GetComponent<Health>();
         if (!ph) ph = player.GetComponentInChildren<Health>();
@@ -278,25 +331,20 @@ public class EnemyAI : MonoBehaviour
             if (CameraShake.Instance != null)
                 CameraShake.Instance.Shake();
         }
-        else
-        {
-            Debug.LogWarning("Enemy tried to damage player but could NOT find Health!");
-        }
     }
 
     void FinishAttack()
     {
         isAttacking = false;
+        attackRoutine = null;
 
-        if (!isDead && player)
-        {
-            if (!inCombat)
-                EnterCombat();
+        if (isDead || !player) return;
 
-            agent.isStopped = false;
-            agent.ResetPath();
-            agent.SetDestination(player.position);
-        }
+        if (!inCombat) EnterCombat();
+
+        agent.isStopped = false;
+        agent.ResetPath();
+        agent.SetDestination(player.position);
     }
 
     // ANIMATION
@@ -307,13 +355,20 @@ public class EnemyAI : MonoBehaviour
         if (isDead)
         {
             animator.SetFloat("Speed", 0f);
+            animator.SetBool("isChasing", false);
             animator.SetBool("isDead", true);
             return;
         }
 
-        if (isAttacking) return;
+        if (isAttacking)
+        {
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("isChasing", false);
+            return;
+        }
 
-        float speed = agent.velocity.magnitude;
+        // use desiredVelocity -> fixes late walk when chasing
+        float speed = agent.desiredVelocity.magnitude;
 
         bool shouldMove =
             speed > 0.05f ||
@@ -323,16 +378,36 @@ public class EnemyAI : MonoBehaviour
         animator.SetBool("isChasing", inCombat && shouldMove);
     }
 
-    // DEATH
+    // DEATH (Health destroys with delay; here only stop logic + anim flag)
     void OnDeath()
     {
         if (isDead) return;
 
         isDead = true;
-        agent.isStopped = true;
 
-        animator.SetBool("isDead", true);
+        // stop attack routine safely
+        if (attackRoutine != null)
+        {
+            StopCoroutine(attackRoutine);
+            attackRoutine = null;
+        }
 
-        Destroy(gameObject, 3f);
+        isAttacking = false;
+        inCombat = false;
+
+        if (agent)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+            agent.ResetPath();
+        }
+
+        if (animator)
+        {
+            animator.ResetTrigger("Attack");
+            animator.SetBool("isChasing", false);
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("isDead", true);
+        }
     }
 }

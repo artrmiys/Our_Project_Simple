@@ -84,9 +84,9 @@ public class SimplePortal : MonoBehaviour
         }
         else
         {
-            if (debugLogs) Debug.Log("[Portal:" + name + "] OnTriggerEnter ignored. unlocked=" + unlocked +
-                                     ", tagOK=" + other.CompareTag("Player") +
-                                     ", cdOK=" + (Time.time - lastTP > cooldown));
+            //if (debugLogs) Debug.Log("[Portal:" + name + "] OnTriggerEnter ignored. unlocked=" + unlocked +
+                                    // ", tagOK=" + other.CompareTag("Player") +
+                                    // ", cdOK=" + (Time.time - lastTP > cooldown));
         }
     }
 
