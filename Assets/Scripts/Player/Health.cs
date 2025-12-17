@@ -50,6 +50,14 @@ public class Health : MonoBehaviour
     public bool freezePoseAfterDeath = true;
     public bool freezeByDisablingAnimator = true;
 
+    public void RestoreToFull()
+    {
+        if (currentHP <= 0f) return;
+        currentHP = maxHP;
+        onHealthChanged?.Invoke(currentHP, maxHP);
+    }
+
+
     void Awake()
     {
         currentHP = maxHP;

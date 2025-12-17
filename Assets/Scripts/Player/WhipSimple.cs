@@ -19,15 +19,24 @@ public class WhipSimple : MonoBehaviour
     public GameObject flashPrefab;
     public float flashHitScale = 2f;
 
-    LineRenderer lr;
-    Vector3[] points;
-    bool spawnedFlash = false;
-    GameObject flashInstance;
-    Vector3 flashDefaultScale = Vector3.one;
+    [Header("Pull by whip hit (NO button)")]
+    public bool enablePull = true;
+    public string pullableTag = "Pullable";  // назначь этот тег объектам, которые можно тянуть
+    public float pullCheckRadius = 0.18f;    // радиус “касания” нити
+
+    private LineRenderer lr;
+    private Vector3[] points;
+    private bool spawnedFlash = false;
+    private GameObject flashInstance;
+    private Vector3 flashDefaultScale = Vector3.one;
 
     // hit cd
-    Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
-    float hitCooldown = 0.2f;
+    private Dictionary<Health, float> lastHit = new Dictionary<Health, float>();
+    private float hitCooldown = 0.2f;
+
+    // pull
+    private ThreadPullToPlayer pullSystem;
+    private bool pullTriggered = false;
 
     void Start()
     {
@@ -48,6 +57,10 @@ public class WhipSimple : MonoBehaviour
         lr.widthCurve = curve;
 
         points = new Vector3[segments];
+
+        // find pull system on Marion (parent)
+        pullSystem = GetComponentInParent<ThreadPullToPlayer>();
+
         StartCoroutine(DestroyAfter(lifetime));
     }
 
@@ -95,14 +108,33 @@ public class WhipSimple : MonoBehaviour
             }
         }
 
-        // hits
+        // hits (damage + pull)
         for (int i = 0; i < segments; i++)
         {
-            Collider[] hits = Physics.OverlapSphere(points[i], 0.15f);
+            Collider[] hits = Physics.OverlapSphere(points[i], pullCheckRadius);
             foreach (Collider col in hits)
             {
+                if (col == null) continue;
                 if (col.CompareTag("Player")) continue;
 
+                // --- PULL: only once per whip instance ---
+                if (enablePull && !pullTriggered && pullSystem != null && col.CompareTag(pullableTag))
+                {
+                    Rigidbody rb = col.attachedRigidbody;
+                    if (rb != null)
+                    {
+                        pullSystem.Hook(rb);
+                        pullTriggered = true;
+
+                        if (flashInstance != null)
+                            flashInstance.transform.localScale = flashDefaultScale * flashHitScale;
+
+                        if (CameraShake.Instance != null)
+                            CameraShake.Instance.Shake();
+                    }
+                }
+
+                // --- DAMAGE ---
                 Health target = col.GetComponent<Health>();
                 if (target)
                 {
