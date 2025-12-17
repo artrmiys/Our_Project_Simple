@@ -10,6 +10,7 @@ TagManager:
   - Environment
   - Surface_Theatre
   - Surface_Outside
+  - Pullable
   layers:
   - Default
   - TransparentFX
@@ -21,7 +22,7 @@ TagManager:
   - Rope
   - Ground
   - Enemies
-  - 
+  - Pullable
   - 
   - 
   - 

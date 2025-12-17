@@ -7,7 +7,7 @@ public class ThreadPullToPlayer : MonoBehaviour
     public LineRenderer line;
 
     [Header("Pull Settings")]
-    public float pullSpeed = 8f;
+    public float pullSpeed = 8f;          // units per second
     public float stopDistance = 1.2f;
     public float maxObjectMass = 30f;
 
@@ -16,7 +16,12 @@ public class ThreadPullToPlayer : MonoBehaviour
 
     void Awake()
     {
-        if (line) line.enabled = false;
+        if (line)
+        {
+            line.enabled = false;
+            line.useWorldSpace = true;
+            line.positionCount = 2;
+        }
     }
 
     void Update()
@@ -32,20 +37,22 @@ public class ThreadPullToPlayer : MonoBehaviour
     {
         if (!isPulling || targetRb == null || pullPoint == null) return;
 
-        Vector3 toPlayer = pullPoint.position - targetRb.position;
-        float dist = toPlayer.magnitude;
+        Vector3 toPlayer = pullPoint.position - targetRb.worldCenterOfMass;
+        float sqrDist = toPlayer.sqrMagnitude;
 
-        if (dist <= stopDistance)
+        if (sqrDist <= stopDistance * stopDistance)
         {
             targetRb.velocity = Vector3.zero;
+            targetRb.angularVelocity = Vector3.zero;
             Release();
             return;
         }
 
-        targetRb.velocity = toPlayer.normalized * pullSpeed;
+        // MovePosition respects collisions better than forcing velocity
+        Vector3 step = toPlayer.normalized * (pullSpeed * Time.fixedDeltaTime);
+        targetRb.MovePosition(targetRb.position + step);
     }
 
-    // 🔑 ВОТ ОН — метод, который искал ThreadTipHook
     public void Hook(Rigidbody rb)
     {
         if (rb == null) return;
@@ -65,7 +72,6 @@ public class ThreadPullToPlayer : MonoBehaviour
     {
         if (!line || pullPoint == null || targetRb == null) return;
 
-        line.positionCount = 2;
         line.SetPosition(0, pullPoint.position);
         line.SetPosition(1, targetRb.worldCenterOfMass);
     }
